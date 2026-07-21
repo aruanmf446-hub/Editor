@@ -86,6 +86,13 @@ describe('runtime phase 2', () => {
     const state = world([object('platform', 90, 90, 100, 120)]); state.player.y = 800;
     resolveWorldMovement(state, .016); expect(state.player.y).toBeLessThan(state.player.spawnY); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
   });
+  it('pausa com motivo explícito quando não existe respawn válido', () => {
+    const state = world([object('wall', 90, 0, 100, 600)]); state.player.y = 800;
+    resolveWorldMovement(state, .016);
+    expect(state.paused).toBe(true);
+    expect(state.respawnFailure).toBe(true);
+    expect(state.pauseReason).toBe('invalid-respawn');
+  });
   it('produz resultado equivalente em 60 e 30 frames por segundo', () => {
     const sixty = world(); const thirty = world(); sixty.input.right = true; thirty.input.right = true;
     simulate(sixty, 60, 1 / 60); simulate(thirty, 30, 1 / 30);
