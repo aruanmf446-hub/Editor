@@ -1,0 +1,70 @@
+import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEditorStore } from '../state/editorStore';
+import type { ProjectScene, SceneObjectBase } from '../types/project';
+
+type HandleKind = 'patrol-left' | 'patrol-right' | 'vision';
+type DragState = { kind: HandleKind; pointerId: number; startClientX: number; startLeft: number; startRight: number; startVision: number };
+type Props = { scene: ProjectScene; object: SceneObjectBase<'enemy-cactus'>; zoom: number };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+export function EnemyRangeHandles({ scene, object, zoom }: Props) {
+  const updateObject = useEditorStore((state) => state.updateObject);
+  const initial = useMemo(() => {
+    const maxX = Math.max(0, scene.width - object.transform.width);
+    const left = clamp(object.patrolLeft ?? object.transform.x - 160, 0, maxX);
+    const right = clamp(object.patrolRight ?? object.transform.x + 160, left, maxX);
+    return { left, right, vision: Math.max(0, object.visionDistance ?? 420) };
+  }, [object.patrolLeft, object.patrolRight, object.transform.width, object.transform.x, object.visionDistance, scene.width]);
+  const [draft, setDraft] = useState(initial);
+  const [drag, setDrag] = useState<DragState | null>(null);
+
+  useEffect(() => { if (!drag) setDraft(initial); }, [drag, initial]);
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (event: PointerEvent) => {
+      if (event.pointerId !== drag.pointerId) return;
+      const dx = (event.clientX - drag.startClientX) / Math.max(zoom, 0.01);
+      if (drag.kind === 'patrol-left') setDraft((current) => ({ ...current, left: clamp(drag.startLeft + dx, 0, current.right) }));
+      if (drag.kind === 'patrol-right') setDraft((current) => ({ ...current, right: clamp(drag.startRight + dx, current.left, Math.max(0, scene.width - object.transform.width)) }));
+      if (drag.kind === 'vision') setDraft((current) => ({ ...current, vision: clamp(drag.startVision + dx, 0, scene.width) }));
+    };
+    const finish = (event: PointerEvent) => {
+      if (event.pointerId !== drag.pointerId) return;
+      updateObject(object.id, { patrolLeft: draft.left, patrolRight: draft.right, visionDistance: draft.vision });
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+  }, [drag, draft.left, draft.right, draft.vision, object.id, object.transform.width, scene.width, updateObject, zoom]);
+
+  const begin = (kind: HandleKind) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDrag({ kind, pointerId: event.pointerId, startClientX: event.clientX, startLeft: draft.left, startRight: draft.right, startVision: draft.vision });
+  };
+
+  const centerX = object.transform.x + object.transform.width / 2;
+  const patrolY = Math.min(scene.height - 18, object.transform.y + object.transform.height + 24);
+  const visionY = Math.max(20, object.transform.y - 22);
+  return <div className="enemy-range-editor" aria-label="Limites do cacto">
+    <div className="enemy-patrol-line" style={{ left: draft.left * zoom, top: patrolY * zoom, width: Math.max(1, draft.right - draft.left) * zoom }}>
+      <span>Andar</span>
+      <button type="button" className="enemy-range-handle left" style={{ left: 0 }} onPointerDown={begin('patrol-left')} aria-label="Arrastar limite esquerdo de caminhada" />
+      <button type="button" className="enemy-range-handle right" style={{ right: 0 }} onPointerDown={begin('patrol-right')} aria-label="Arrastar limite direito de caminhada" />
+    </div>
+    <div className="enemy-vision-line" style={{ left: Math.max(0, centerX - draft.vision) * zoom, top: visionY * zoom, width: Math.min(scene.width, draft.vision * 2) * zoom }}>
+      <span>Visão {Math.round(draft.vision)}</span>
+      <i style={{ left: draft.vision * zoom }} />
+      <button type="button" className="enemy-range-handle vision" style={{ left: Math.min(scene.width - centerX, draft.vision) * zoom + draft.vision * zoom }} onPointerDown={begin('vision')} aria-label="Arrastar alcance de visão" />
+    </div>
+  </div>;
+}
