@@ -1,4 +1,5 @@
 import type { ElFuegoProject, ProjectScene } from '../types/project';
+import type { RuntimeObjectMemory } from './RuntimeAdvancedObjects';
 import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
 import type { RuntimePickupMemory, RuntimePickupState } from './RuntimePickup';
@@ -26,6 +27,13 @@ export type RuntimeWorld = {
   pickupMemory: RuntimePickupMemory;
   platforms: RuntimePlatformState[];
   activeCheckpoint: RuntimeCheckpointState | null;
+  collectedObjectIds?: RuntimeObjectMemory;
+  triggeredObjectIds?: RuntimeObjectMemory;
+  activeTriggerContacts?: RuntimeObjectMemory;
+  collectiblesRemaining?: number;
+  activeDialogue?: string | null;
+  lastTriggerId?: string | null;
+  playerNoCollision?: boolean;
   camera: RuntimeCameraState;
   input: RuntimeInputSnapshot;
   paused: boolean;
@@ -39,7 +47,7 @@ export type RuntimeWorld = {
 
 export function createRuntimePlatforms(scene: ProjectScene): RuntimePlatformState[] {
   return scene.objects
-    .filter((object) => object.visible && (object.type === 'platform' || object.type === 'wall'))
+    .filter((object) => object.visible && (object.type === 'platform' || object.type === 'wall' || object.type === 'obstacle'))
     .map((object) => ({
       id: object.id,
       x: object.transform.x,
