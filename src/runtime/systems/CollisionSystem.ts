@@ -8,16 +8,29 @@ const RESPAWN_SEARCH_STEP = 4;
 function findSafeRespawnY(world: RuntimeWorld): number | null {
   const player = world.player;
   for (let offset = 0; offset <= MAX_RESPAWN_SEARCH_DISTANCE; offset += RESPAWN_SEARCH_STEP) {
-    const candidate: RuntimeBounds = {
-      x: player.spawnX,
-      y: player.spawnY - offset,
-      width: player.width,
-      height: player.standingHeight,
-    };
+    const candidate: RuntimeBounds = { x: player.spawnX, y: player.spawnY - offset, width: player.width, height: player.standingHeight };
     const blocked = world.platforms.some((platform) => !platform.oneWay && intersects(candidate, platform));
     if (!blocked && candidate.x >= 0 && candidate.x + candidate.width <= world.scene.width && candidate.y >= 0) return candidate.y;
   }
   return null;
+}
+
+export function respawnPlayerSafely(world: RuntimeWorld): boolean {
+  const safeY = findSafeRespawnY(world);
+  if (safeY === null) {
+    world.respawnFailure = true;
+    world.pauseReason = 'invalid-respawn';
+    world.paused = true;
+    world.player.velocityX = 0;
+    world.player.velocityY = 0;
+    return false;
+  }
+  world.respawnFailure = false;
+  world.pauseReason = undefined;
+  resetPlayerAtSpawn(world.player);
+  world.player.y = safeY;
+  world.player.previousY = safeY;
+  return true;
 }
 
 export function resolveWorldMovement(world: RuntimeWorld, delta: number) {
@@ -31,20 +44,5 @@ export function resolveWorldMovement(world: RuntimeWorld, delta: number) {
     if (player.velocityY < 0) player.velocityY = 0;
     player.lastCollisionSide = 'top';
   }
-  if (player.y > world.scene.height + player.height) {
-    const safeY = findSafeRespawnY(world);
-    if (safeY === null) {
-      world.respawnFailure = true;
-      world.pauseReason = 'invalid-respawn';
-      world.paused = true;
-      player.velocityX = 0;
-      player.velocityY = 0;
-      return;
-    }
-    world.respawnFailure = false;
-    world.pauseReason = undefined;
-    resetPlayerAtSpawn(player);
-    player.y = safeY;
-    player.previousY = safeY;
-  }
+  if (player.y > world.scene.height + player.height) respawnPlayerSafely(world);
 }
