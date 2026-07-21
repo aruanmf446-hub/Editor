@@ -1,9 +1,10 @@
 import type { SceneObjectBase } from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
-import type { RuntimePlatformState } from './RuntimeWorld';
+import type { RuntimeBounds, RuntimePlatformState } from './RuntimeWorld';
 import { intersects } from './RuntimeCollision';
 
-export type RuntimePlayerVisualState = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'crouch';
+export type RuntimePlayerVisualState = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'crouch' | 'attack' | 'defend' | 'hurt' | 'dead';
+export type RuntimePlayerMode = RuntimePlayerVisualState;
 
 export type RuntimePlayerState = {
   x: number;
@@ -21,16 +22,26 @@ export type RuntimePlayerState = {
   grounded: boolean;
   crouching: boolean;
   health: number;
+  maxHealth: number;
   attack: number;
   defense: number;
   coyoteRemaining: number;
   jumpBufferRemaining: number;
+  mode: RuntimePlayerMode;
   visualState: RuntimePlayerVisualState;
+  attackElapsed: number;
+  attackCooldownRemaining: number;
+  attackHitbox: RuntimeBounds | null;
+  defending: boolean;
+  invulnerabilityRemaining: number;
+  hurtRemaining: number;
+  deathRemaining: number;
   lastCollisionSide: 'left' | 'right' | 'top' | 'bottom' | null;
 };
 
 /** player-spawn x/y represent the top-left corner of the initial player hitbox. */
 export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState {
+  const health = spawn.initialHealth ?? 3;
   return {
     x: spawn.transform.x,
     y: spawn.transform.y,
@@ -46,17 +57,27 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     direction: spawn.direction ?? 'right',
     grounded: false,
     crouching: false,
-    health: spawn.initialHealth ?? 3,
+    health,
+    maxHealth: health,
     attack: spawn.initialAttack ?? 1,
     defense: spawn.initialDefense ?? 1,
     coyoteRemaining: 0,
     jumpBufferRemaining: 0,
+    mode: 'fall',
     visualState: 'fall',
+    attackElapsed: 0,
+    attackCooldownRemaining: 0,
+    attackHitbox: null,
+    defending: false,
+    invulnerabilityRemaining: 0,
+    hurtRemaining: 0,
+    deathRemaining: 0,
     lastCollisionSide: null,
   };
 }
 
 export function resolvePlayerVisualState(player: RuntimePlayerState): RuntimePlayerVisualState {
+  if (player.mode === 'dead' || player.mode === 'hurt' || player.mode === 'attack' || player.mode === 'defend') return player.mode;
   if (player.crouching) return 'crouch';
   if (!player.grounded) return player.velocityY < 0 ? 'jump' : 'fall';
   const speed = Math.abs(player.velocityX);
@@ -95,6 +116,13 @@ export function resetPlayerAtSpawn(player: RuntimePlayerState): void {
   player.crouching = false;
   player.coyoteRemaining = 0;
   player.jumpBufferRemaining = 0;
-  player.lastCollisionSide = null;
+  player.mode = 'fall';
   player.visualState = 'fall';
+  player.attackElapsed = 0;
+  player.attackCooldownRemaining = 0;
+  player.attackHitbox = null;
+  player.defending = false;
+  player.hurtRemaining = 0;
+  player.deathRemaining = 0;
+  player.lastCollisionSide = null;
 }
