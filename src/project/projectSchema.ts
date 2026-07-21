@@ -2,7 +2,10 @@ import { z } from 'zod';
 const finite = z.number().finite();
 const positive = finite.positive();
 export const transformSchema = z.object({x:finite,y:finite,z:finite,width:positive,height:positive,scaleX:finite.refine((value)=>value!==0),scaleY:finite.refine((value)=>value!==0),rotation:finite});
-export const objectSchema = z.object({id:z.string().min(1),sceneId:z.string().min(1),type:z.string().min(1),name:z.string().min(1),assetId:z.string().optional(),transform:transformSchema,visible:z.boolean(),locked:z.boolean(),editorOnly:z.boolean(),gameOnly:z.boolean()}).passthrough();
+export const objectSchema = z.object({
+  id:z.string().min(1),sceneId:z.string().min(1),type:z.string().min(1),name:z.string().min(1),assetId:z.string().optional(),transform:transformSchema,visible:z.boolean(),locked:z.boolean(),editorOnly:z.boolean(),gameOnly:z.boolean(),
+  endingMode:z.enum(['next-scene','target-scene','complete-game']).optional(),targetSceneId:z.string().optional(),
+}).passthrough();
 const backgroundSchema = z.object({
   fit:z.enum(['cover','contain','stretch','original']).default('cover'),
   positionX:finite.default(50),
