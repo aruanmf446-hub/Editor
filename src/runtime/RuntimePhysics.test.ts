@@ -38,7 +38,7 @@ const input = () => ({ left: false, right: false, jump: false, crouch: false, at
 function world(objects: SceneObjectBase[] = []): RuntimeWorld {
   const spawn = object('player-spawn', 100, 100, 50, 100, { initialHealth: 3, initialAttack: 1, initialDefense: 1, direction: 'right' });
   const current = { ...scene, objects: [spawn, ...objects] };
-  return { project: { ...project, scenes: [current] }, scene: current, player: createRuntimePlayer(spawn), platforms: createRuntimePlatforms(current), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
+  return { project: { ...project, scenes: [current] }, scene: current, player: createRuntimePlayer(spawn), enemies: [], platforms: createRuntimePlatforms(current), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
 }
 
 function simulate(state: RuntimeWorld, frames: number, delta: number) {
@@ -107,8 +107,6 @@ describe('runtime phase 2', () => {
     updateRuntimeWorld(state, RUNTIME_CONFIG.fixedStep); expect(state.player.x).toBe(100); expect(state.player.coyoteRemaining).toBe(.05);
   });
   it('reaparece fora de colisor quando o spawn foi coberto', () => {
-    // The collider overlaps the spawn (player occupies y=100..200) while
-    // leaving a valid same-X position above it (player can fit at y<=90).
     const state = world([object('platform', 90, 190, 100, 120)]); state.player.y = 800;
     resolveWorldMovement(state, .016); expect(state.player.y).toBeLessThan(state.player.spawnY); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
   });
