@@ -249,7 +249,19 @@ export function Inspector() {
                   onChange={(event) => updateObject(object.id, { triggerId: event.target.value })}
                 />
               </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(object.triggerOnce)}
+                  onChange={(event) => updateObject(object.id, { triggerOnce: event.target.checked })}
+                />
+                Disparar somente uma vez
+              </label>
             </>
+          )}
+
+          {object.type === 'dialogue-zone' && (
+            <p className="panel-hint">O nome do objeto será exibido como diálogo durante o contato.</p>
           )}
 
           {object.type === 'finish' && (
@@ -286,6 +298,14 @@ export function Inspector() {
                   </select>
                 </label>
               )}
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(object.requiresAllCollectibles)}
+                  onChange={(event) => updateObject(object.id, { requiresAllCollectibles: event.target.checked })}
+                />
+                Exigir todos os colecionáveis da cena
+              </label>
             </>
           )}
 
@@ -302,7 +322,7 @@ export function Inspector() {
           <h3>Cena selecionada</h3>
           <label>
             Nome
-            <input value={scene.name} onChange={(event) => updateScene(scene.id, { name: event.target.value })} />
+            <input value={scene.project?.name ?? scene.name} onChange={(event) => updateScene(scene.id, { name: event.target.value })} />
           </label>
           <div className="field-grid">
             <label>
