@@ -8,6 +8,7 @@ import { EditorHeader, type StudioMode } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
 import { Inspector } from './Inspector';
 import { ObjectTree } from './ObjectTree';
+import { PlayerAnimationPanel } from './PlayerAnimationPanel';
 import { ProblemsPanel } from './ProblemsPanel';
 import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
@@ -89,7 +90,7 @@ export function EditorShell() {
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><PlayerAnimationPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />
