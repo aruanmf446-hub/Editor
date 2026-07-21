@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyProject } from './projectFactory';
+import { projectSchema } from './projectSchema';
 import { validateProject } from '../validation/validateProject';
 
 describe('createEmptyProject',()=>{
   it('cria exatamente uma cena vazia',()=>{const project=createEmptyProject();expect(project.scenes).toHaveLength(1);expect(project.scenes[0].objects).toEqual([]);expect(project.scenes[0].backgroundAssetId).toBeNull();});
-  it('gera um projeto válido',()=>{expect(validateProject(createEmptyProject()).valid).toBe(true);});
+  it('gera um projeto estruturalmente válido',()=>{expect(projectSchema.safeParse(createEmptyProject()).success).toBe(true);});
+  it('informa que o projeto vazio ainda precisa de spawn',()=>{expect(validateProject(createEmptyProject()).issues.map(issue=>issue.code)).toContain('MISSING_GLOBAL_SPAWN');});
   it('rejeita valores não finitos',()=>{const project=createEmptyProject();project.settings.gravity=Number.NaN;expect(validateProject(project).valid).toBe(false);});
 });
