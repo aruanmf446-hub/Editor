@@ -21,6 +21,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
   const [interaction, setInteraction] = useState<Interaction | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [guides, setGuides] = useState({ vertical: false, horizontal: false });
+  const [areaHeight, setAreaHeight] = useState(720);
   const maxSceneHeight = Math.max(...store.project.scenes.map((scene) => scene.height), 1);
   const totalSceneWidth = store.project.scenes.reduce((sum, scene) => sum + scene.width, 0);
 
@@ -34,19 +35,24 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
 
   useEffect(() => {
     const area = areaRef.current;
-    if (!area || testMode) return;
+    if (!area) return;
     let frame = 0;
     const selected = store.project.scenes.find((scene) => scene.id === store.selectedSceneId) ?? store.project.scenes[0];
-    const fit = () => {
+    const measure = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => store.setZoom(calculateFitZoom({ availableWidth: area.clientWidth, availableHeight: area.clientHeight, sceneWidth: selected.width, sceneHeight: selected.height })));
+      frame = requestAnimationFrame(() => {
+        setAreaHeight(Math.max(1, area.clientHeight));
+        if (!testMode && selected) {
+          store.setZoom(calculateFitZoom({ availableWidth: area.clientWidth, availableHeight: area.clientHeight, sceneWidth: selected.width, sceneHeight: selected.height }));
+        }
+      });
     };
-    fit();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(area);
-    document.addEventListener('fullscreenchange', fit);
-    return () => { cancelAnimationFrame(frame); observer?.disconnect(); document.removeEventListener('fullscreenchange', fit); };
-  }, [store.fitRequest, store.selectedSceneId, store.project.scenes, store.setZoom, testMode]);
+    document.addEventListener('fullscreenchange', measure);
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); document.removeEventListener('fullscreenchange', measure); };
+  }, [store, testMode]);
 
   const snap = (value: number) => store.project.settings.snapEnabled ? Math.round(value / store.project.settings.gridSize) * store.project.settings.gridSize : Math.round(value);
 
@@ -124,7 +130,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
     store.cancelTransformPreview(interaction.beforeProject); setInteraction(null); setGuides({ vertical: false, horizontal: false });
   };
 
-  const zoom = testMode ? Math.min(1, Math.max(0.2, (areaRef.current?.clientHeight ?? 720) / maxSceneHeight)) : store.zoom;
+  const zoom = testMode ? Math.min(1, Math.max(0.2, areaHeight / maxSceneHeight)) : store.zoom;
 
   return <section ref={areaRef} className={`canvas-area sequence-canvas-area ${store.gridEnabled && !testMode ? 'grid-enabled' : ''} ${testMode ? 'test-mode-canvas' : ''}`}>
     {testMode && <div className="test-mode-banner"><strong>Modo Testar</strong><span>Prévia contínua do plano-sequência · pressione Esc para voltar</span></div>}
