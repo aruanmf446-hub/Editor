@@ -5,16 +5,11 @@ import { useEditorStore } from '../state/editorStore';
 
 export function EditorHeader() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { project, saveStatus, setProject, setSaveStatus, newProject } = useEditorStore();
+  const { project, saveStatus, setProject, setSaveStatus, newProject, undo, redo, past, future } = useEditorStore();
 
   const save = async () => {
     setSaveStatus('Salvando...');
-    try {
-      await saveProject(project);
-      setSaveStatus('Salvo');
-    } catch {
-      setSaveStatus('Erro ao salvar');
-    }
+    try { await saveProject(project); setSaveStatus('Salvo'); } catch { setSaveStatus('Erro ao salvar'); }
   };
 
   const exportFile = async () => {
@@ -29,12 +24,8 @@ export function EditorHeader() {
 
   const openFile = async (file?: File) => {
     if (!file) return;
-    try {
-      const imported = await importProjectArchive(file);
-      setProject(imported, 'Alterações não salvas');
-    } catch {
-      window.alert('Não foi possível abrir este projeto .elfuego.');
-    }
+    try { setProject(await importProjectArchive(file), 'Alterações não salvas'); }
+    catch { window.alert('Não foi possível abrir este projeto .elfuego.'); }
   };
 
   const createNew = () => {
@@ -45,7 +36,11 @@ export function EditorHeader() {
   return (
     <header className="topbar">
       <div className="brand"><strong>El Fuego Studio</strong><span>{project.project.name}</span></div>
-      <div className="header-center"><button disabled title="Disponível na Fase 2">↶</button><button disabled title="Disponível na Fase 2">↷</button><span className="mode active">Editar</span><span className="mode disabled">Jogar</span></div>
+      <div className="header-center">
+        <button disabled={!past.length} onClick={undo} title="Desfazer (Ctrl+Z)">↶</button>
+        <button disabled={!future.length} onClick={redo} title="Refazer (Ctrl+Y)">↷</button>
+        <span className="mode active">Editar</span><span className="mode disabled">Jogar</span>
+      </div>
       <div className="actions">
         <input ref={inputRef} hidden type="file" accept=".elfuego" onChange={(event) => void openFile(event.target.files?.[0])} />
         <button type="button" onClick={createNew}>Novo</button>
