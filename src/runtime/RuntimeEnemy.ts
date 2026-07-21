@@ -1,4 +1,4 @@
-import type { ProjectScene, SceneObjectBase } from '../types/project';
+import type { EnemyAnimationAssignments, ProjectScene, SceneObjectBase } from '../types/project';
 import { intersects } from './RuntimeCollision';
 import type { RuntimeBounds, RuntimeWorld } from './RuntimeWorld';
 import { receivePlayerDamage } from './systems/PlayerCombatSystem';
@@ -11,6 +11,7 @@ export type RuntimeEnemyState = RuntimeBounds & {
   id: string;
   sourceObjectId: string;
   assetId?: string;
+  animationAssignments?: EnemyAnimationAssignments;
   kind: RuntimeEnemyKind;
   previousX: number;
   previousY: number;
@@ -73,6 +74,7 @@ function createEnemy(object: SceneObjectBase, scene: ProjectScene): RuntimeEnemy
     id: object.id,
     sourceObjectId: object.id,
     assetId: object.assetId,
+    animationAssignments: object.enemyAnimationAssignments,
     kind,
     x: spawnX,
     y: object.transform.y,
@@ -167,14 +169,7 @@ function updateBossPhase(enemy: RuntimeEnemyState): void {
   enemy.phase = Math.min(enemy.phaseCount, Math.floor(lostRatio * enemy.phaseCount) + 1);
 }
 
-function moveEnemy(
-  world: RuntimeWorld,
-  enemy: RuntimeEnemyState,
-  direction: 'left' | 'right',
-  speed: number,
-  delta: number,
-  patrolOnly: boolean,
-): boolean {
+function moveEnemy(world: RuntimeWorld, enemy: RuntimeEnemyState, direction: 'left' | 'right', speed: number, delta: number, patrolOnly: boolean): boolean {
   enemy.direction = direction;
   const sign = direction === 'right' ? 1 : -1;
   const displacement = sign * speed * delta;
@@ -188,7 +183,6 @@ function moveEnemy(
     const previousX = enemy.x;
     let nextX = clamp(previousX + step, 0, sceneMaxX);
     if (patrolOnly) nextX = clamp(nextX, enemy.patrolLeft, enemy.patrolRight);
-
     const candidate: RuntimeBounds = { x: nextX, y: enemy.y, width: enemy.width, height: enemy.height };
     const obstacle = solidObstacleAt(world, candidate);
     if (obstacle) {
@@ -197,12 +191,10 @@ function moveEnemy(
       if (patrolOnly) nextX = clamp(nextX, enemy.patrolLeft, enemy.patrolRight);
       blocked = true;
     }
-
     enemy.previousX = previousX;
     enemy.x = nextX;
     if (blocked || nextX === previousX) break;
   }
-
   enemy.velocityX = blocked ? 0 : sign * speed;
   return blocked;
 }
@@ -227,13 +219,7 @@ function updateAttack(world: RuntimeWorld, enemy: RuntimeEnemyState, delta: numb
   if (!enemy.attackDamageApplied && previousElapsed < hitTime && enemy.attackElapsed >= hitTime) {
     const inRange = horizontalGap(enemy, world.player) <= enemy.attackDistance
       && verticalGap(enemy, world.player) <= Math.max(enemy.height, world.player.height);
-    if (inRange) {
-      receivePlayerDamage(world, {
-        amount: phaseDamage(enemy),
-        sourceX: enemy.x + enemy.width / 2,
-        damageType: 'physical',
-      });
-    }
+    if (inRange) receivePlayerDamage(world, { amount: phaseDamage(enemy), sourceX: enemy.x + enemy.width / 2, damageType: 'physical' });
     enemy.attackDamageApplied = true;
   }
 
@@ -247,13 +233,11 @@ function updateAttack(world: RuntimeWorld, enemy: RuntimeEnemyState, delta: numb
 function patrol(world: RuntimeWorld, enemy: RuntimeEnemyState, delta: number): void {
   enemy.mode = 'patrol';
   enemy.visualState = enemy.walkSpeed > 0 ? 'walk' : 'idle';
-
   let direction = enemy.direction;
   if (enemy.x < enemy.patrolLeft) direction = 'right';
   else if (enemy.x > enemy.patrolRight) direction = 'left';
   else if (enemy.x <= enemy.patrolLeft && direction === 'left') direction = 'right';
   else if (enemy.x >= enemy.patrolRight && direction === 'right') direction = 'left';
-
   const blocked = moveEnemy(world, enemy, direction, enemy.walkSpeed, delta, true);
   if (blocked) enemy.direction = direction === 'right' ? 'left' : 'right';
 }
@@ -263,17 +247,12 @@ function chase(world: RuntimeWorld, enemy: RuntimeEnemyState, delta: number): vo
   const playerCenter = player.x + player.width / 2;
   faceTarget(enemy, playerCenter);
   const gap = horizontalGap(enemy, player);
-
   if (gap <= enemy.attackDistance) {
     enemy.velocityX = 0;
     if (enemy.attackCooldownRemaining === 0) beginAttack(enemy);
-    else {
-      enemy.mode = 'chase';
-      enemy.visualState = 'idle';
-    }
+    else { enemy.mode = 'chase'; enemy.visualState = 'idle'; }
     return;
   }
-
   enemy.mode = 'chase';
   enemy.visualState = 'run';
   moveEnemy(world, enemy, enemy.direction, phaseSpeed(enemy), delta, false);
@@ -283,12 +262,10 @@ function applyPlayerAttack(world: RuntimeWorld, enemy: RuntimeEnemyState): void 
   const hitbox = world.player.attackHitbox;
   const attackSerial = world.player.attackSerial;
   if (!hitbox || attackSerial <= 0 || enemy.lastHitByAttackSerial === attackSerial || !intersects(hitbox, enemy)) return;
-
   enemy.lastHitByAttackSerial = attackSerial;
   enemy.health = Math.max(0, enemy.health - Math.max(1, Math.floor(world.player.attack)));
   enemy.velocityX = world.player.direction === 'right' ? 110 : -110;
   updateBossPhase(enemy);
-
   if (enemy.health === 0) {
     enemy.mode = 'dead';
     enemy.visualState = 'dead';
@@ -298,7 +275,6 @@ function applyPlayerAttack(world: RuntimeWorld, enemy: RuntimeEnemyState): void 
     enemy.velocityX = 0;
     return;
   }
-
   enemy.mode = 'hurt';
   enemy.visualState = 'hurt';
   enemy.hurtRemaining = ENEMY_HURT_DURATION;
@@ -324,7 +300,6 @@ function updateDead(world: RuntimeWorld, enemy: RuntimeEnemyState, delta: number
   enemy.deathRemaining = Math.max(0, enemy.deathRemaining - delta);
   if (enemy.deathRemaining > 0) return;
   enemy.removed = true;
-
   if (enemy.kind !== 'boss') return;
   const livingBoss = world.enemies.some((candidate) => candidate.kind === 'boss' && !candidate.removed && candidate.health > 0);
   const hasFinish = world.scene.objects.some((object) => object.type === 'finish' && object.visible && !object.editorOnly);
@@ -344,21 +319,10 @@ export function updateRuntimeEnemies(world: RuntimeWorld, delta: number): void {
     enemy.previousX = enemy.x;
     enemy.previousY = enemy.y;
     enemy.attackCooldownRemaining = Math.max(0, enemy.attackCooldownRemaining - delta);
-
     if (enemy.mode !== 'dead') applyPlayerAttack(world, enemy);
-    if (enemy.mode === 'dead') {
-      updateDead(world, enemy, delta);
-      continue;
-    }
-    if (enemy.mode === 'hurt') {
-      updateHurt(world, enemy, delta);
-      continue;
-    }
-    if (enemy.mode === 'attack') {
-      updateAttack(world, enemy, delta);
-      continue;
-    }
-
+    if (enemy.mode === 'dead') { updateDead(world, enemy, delta); continue; }
+    if (enemy.mode === 'hurt') { updateHurt(world, enemy, delta); continue; }
+    if (enemy.mode === 'attack') { updateAttack(world, enemy, delta); continue; }
     if (canSeePlayer(world, enemy)) chase(world, enemy, delta);
     else patrol(world, enemy, delta);
   }

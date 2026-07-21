@@ -8,17 +8,14 @@ import { createRuntimePickups, type RuntimePickupKind } from './RuntimePickup';
 import { loadRuntimeProject } from './RuntimeProjectLoader';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
+import { RuntimeEnemyModels } from './rendering/RuntimeEnemyModels';
 import { RuntimeEnemiesLayer } from './rendering/RuntimeEnemiesLayer';
 import { RuntimePlayerModel, type RuntimePlayerModelStatus } from './rendering/RuntimePlayerModel';
 
 type Props = { onExit: () => void };
 type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string };
 
-const pickupIcon: Record<RuntimePickupKind, string> = {
-  health: '♥',
-  attack: '⚔',
-  defense: '◆',
-};
+const pickupIcon: Record<RuntimePickupKind, string> = { health: '♥', attack: '⚔', defense: '◆' };
 const hiddenRuntimeTypes = new Set(['player-spawn', 'enemy-cactus', 'boss', 'drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone', 'collectible']);
 const debugZoneTypes = new Set(['drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone']);
 
@@ -31,6 +28,7 @@ export function RuntimeGame({ onExit }: Props) {
   const [pauseReason, setPauseReason] = useState<RuntimePauseReason>(null);
   const [debug, setDebug] = useState(false);
   const [playerModelStatus, setPlayerModelStatus] = useState<RuntimePlayerModelStatus>('loading');
+  const [enemyModelReadyIds, setEnemyModelReadyIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const loadResult = useMemo<RuntimeLoadResult>(() => {
     try { return loadRuntimeProject(sourceProject); }
@@ -131,20 +129,15 @@ export function RuntimeGame({ onExit }: Props) {
         {scene.objects.filter((object) => object.visible && !object.editorOnly && !hiddenRuntimeTypes.has(object.type) && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         {scene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly && !collected[object.id]).map((object) => <div key={object.id} className="runtime-entity runtime-collectible-live" style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span aria-hidden="true">✦</span></div>)}
         {world.pickups.filter((pickup) => pickup.active).map((pickup) => <div key={pickup.id} className={`runtime-entity runtime-pickup-live runtime-pickup-${pickup.kind}`} style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span aria-hidden="true">{pickupIcon[pickup.kind]}</span>{debug && <small>+{pickup.amount}</small>}</div>)}
-        <RuntimeEnemiesLayer world={world} />
+        <RuntimeEnemiesLayer world={world} modelReadyIds={enemyModelReadyIds} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
         {debug && scene.objects.filter((object) => debugZoneTypes.has(object.type) && object.visible && !object.editorOnly).map((object) => <div key={`zone-${object.id}`} className={`runtime-debug-zone runtime-debug-zone--${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         {debug && world.pickups.filter((pickup) => !pickup.active && pickup.respawnRemaining > 0).map((pickup) => <div key={`pickup-timer-${pickup.id}`} className="runtime-pickup-timer" style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span>{pickup.respawnRemaining.toFixed(1)}s</span></div>)}
         {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
         {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
       </div>
-      <RuntimePlayerModel
-        key={`${world.sceneRevision}-${player.assetId ?? 'sem-modelo'}`}
-        assetId={player.assetId}
-        animationAssignments={player.animationAssignments}
-        world={world}
-        onStatusChange={setPlayerModelStatus}
-      />
+      <RuntimeEnemyModels key={`enemy-models-${world.sceneRevision}`} world={world} onReadyIdsChange={setEnemyModelReadyIds} />
+      <RuntimePlayerModel key={`${world.sceneRevision}-${player.assetId ?? 'sem-modelo'}`} assetId={player.assetId} animationAssignments={player.animationAssignments} world={world} onStatusChange={setPlayerModelStatus} />
       {world.activeDialogue && <div className="runtime-dialogue" role="status"><p>{world.activeDialogue}</p></div>}
     </div>
     {world.completed && <div className="runtime-pause runtime-complete"><h2>Jogo concluído</h2><p>{scene.name} finalizada.</p><button onClick={onExit}>Voltar ao editor</button></div>}
