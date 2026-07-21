@@ -16,4 +16,12 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    files: ['src/runtime/RuntimeGame.tsx'],
+    rules: {
+      // O reset ocorre somente ao criar uma nova sessão/controlador de jogo.
+      // Ele evita que um snapshot da sessão anterior apareça durante a troca de fase.
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 );
