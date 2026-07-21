@@ -1,0 +1,51 @@
+.sequence-scroll{
+  scroll-padding-inline:24px;
+  scrollbar-gutter:stable both-edges;
+}
+
+.scene-sequence-canvas{
+  width:max-content!important;
+  min-width:100%;
+  height:max-content;
+  padding-inline:24px;
+  box-sizing:content-box;
+  gap:0!important;
+}
+
+.sequence-scene{
+  flex:0 0 auto;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  scroll-snap-align:start;
+  isolation:isolate;
+}
+
+.sequence-scene + .sequence-scene::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:1px;
+  background:rgba(255,255,255,.08);
+  pointer-events:none;
+  z-index:90;
+}
+
+.scene-sequence-canvas::before,
+.scene-sequence-canvas::after{
+  content:"";
+  flex:0 0 0;
+}
+
+.runtime-world{
+  contain:layout paint style;
+  backface-visibility:hidden;
+  transform:translate3d(0,0,0);
+}
+
+.runtime-entity,
+.runtime-player{
+  backface-visibility:hidden;
+}
