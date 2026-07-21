@@ -28,4 +28,6 @@ export const RUNTIME_CONFIG = {
   knockbackSpeedY: 420,
   deathDuration: 0.8,
   respawnInvulnerability: 0.5,
+  playerModelFacingRightRotation: Math.PI / 2,
+  playerModelFacingLeftRotation: -Math.PI / 2,
 } as const;
