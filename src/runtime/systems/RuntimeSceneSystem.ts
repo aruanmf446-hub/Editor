@@ -73,6 +73,8 @@ function conditionMet(world: RuntimeWorld, condition: CompletionCondition): bool
 }
 
 function canFinish(world: RuntimeWorld, finish: SceneObjectBase): boolean {
+  const activeBoss = world.enemies.some((enemy) => enemy.kind === 'boss' && !enemy.removed && enemy.health > 0);
+  if (activeBoss) return false;
   if (finish.requiresAllCollectibles && (world.collectiblesRemaining ?? 0) > 0) return false;
   const conditions = finish.completionConditions ?? [];
   if (!conditions.length) return true;
