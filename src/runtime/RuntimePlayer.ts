@@ -11,6 +11,8 @@ export type RuntimePlayerState = {
   y: number;
   previousX: number;
   previousY: number;
+  renderPreviousX: number;
+  renderPreviousY: number;
   spawnX: number;
   spawnY: number;
   width: number;
@@ -47,6 +49,8 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     y: spawn.transform.y,
     previousX: spawn.transform.x,
     previousY: spawn.transform.y,
+    renderPreviousX: spawn.transform.x,
+    renderPreviousY: spawn.transform.y,
     spawnX: spawn.transform.x,
     spawnY: spawn.transform.y,
     width: spawn.transform.width,
@@ -109,6 +113,8 @@ export function resetPlayerAtSpawn(player: RuntimePlayerState): void {
   player.y = player.spawnY;
   player.previousX = player.spawnX;
   player.previousY = player.spawnY;
+  player.renderPreviousX = player.spawnX;
+  player.renderPreviousY = player.spawnY;
   player.height = player.standingHeight;
   player.velocityX = 0;
   player.velocityY = 0;
