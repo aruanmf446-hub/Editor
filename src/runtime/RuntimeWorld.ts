@@ -1,6 +1,7 @@
 import type { ElFuegoProject, ProjectScene } from '../types/project';
 import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
+import type { RuntimePickupMemory, RuntimePickupState } from './RuntimePickup';
 import type { RuntimePlayerState } from './RuntimePlayer';
 
 export type RuntimeBounds = { x: number; y: number; width: number; height: number };
@@ -21,6 +22,8 @@ export type RuntimeWorld = {
   sceneRevision: number;
   player: RuntimePlayerState;
   enemies: RuntimeEnemyState[];
+  pickups: RuntimePickupState[];
+  pickupMemory: RuntimePickupMemory;
   platforms: RuntimePlatformState[];
   activeCheckpoint: RuntimeCheckpointState | null;
   camera: RuntimeCameraState;
