@@ -18,6 +18,8 @@ export type RuntimeWorld = {
   physicsSteps: number;
   accumulator: number;
   droppedPhysicsTime: number;
+  respawnFailure?: boolean;
+  pauseReason?: 'invalid-respawn';
 };
 
 export function createRuntimePlatforms(scene: ProjectScene): RuntimePlatformState[] {
