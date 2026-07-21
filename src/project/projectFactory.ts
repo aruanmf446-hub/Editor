@@ -9,10 +9,7 @@ const DEFAULT_SCENE_WIDTH = 1920;
 const DEFAULT_SCENE_HEIGHT = 1080;
 
 function createId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `elfuego-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
@@ -24,29 +21,18 @@ export function createEmptyScene(order = 0): ProjectScene {
     width: DEFAULT_SCENE_WIDTH,
     height: DEFAULT_SCENE_HEIGHT,
     backgroundAssetId: null,
+    background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 },
     objects: [],
   };
 }
 
 export function createEmptyProject(name = 'Minha fase'): ElFuegoProject {
   const now = new Date().toISOString();
-
   return {
     format: EL_FUEGO_PROJECT_FORMAT,
     version: EL_FUEGO_PROJECT_VERSION,
-    project: {
-      id: createId(),
-      name,
-      createdAt: now,
-      updatedAt: now,
-    },
-    settings: {
-      gravity: -24,
-      gridSize: 16,
-      snapEnabled: true,
-      defaultSceneWidth: DEFAULT_SCENE_WIDTH,
-      defaultSceneHeight: DEFAULT_SCENE_HEIGHT,
-    },
+    project: { id: createId(), name, createdAt: now, updatedAt: now },
+    settings: { gravity: -24, gridSize: 16, snapEnabled: true, defaultSceneWidth: DEFAULT_SCENE_WIDTH, defaultSceneHeight: DEFAULT_SCENE_HEIGHT },
     assets: [],
     scenes: [createEmptyScene()],
   };
