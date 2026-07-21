@@ -1,5 +1,6 @@
 import type { RuntimeProjectSnapshot } from './RuntimeProjectLoader';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
+import { createRuntimeEnemies } from './RuntimeEnemy';
 import { RuntimeInput } from './RuntimeInput';
 import { RuntimeLoop, type RuntimeFrame } from './RuntimeLoop';
 import { updateRuntimeWorld } from './RuntimePhysics';
@@ -26,6 +27,7 @@ export class RuntimeController {
       project: snapshot.project,
       scene: snapshot.initialScene,
       player: createRuntimePlayer(snapshot.spawn),
+      enemies: createRuntimeEnemies(snapshot.initialScene),
       platforms: createRuntimePlatforms(snapshot.initialScene),
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
       input: this.input.snapshot(), paused: false, completed: false,
