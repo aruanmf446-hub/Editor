@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { saveProject } from '../persistence/projectRepository';
 import { useEditorStore } from '../state/editorStore';
 import { AssetLibrary } from './AssetLibrary';
 import { EditorCanvas } from './EditorCanvas';
-import { EditorHeader } from './EditorHeader';
+import { EditorHeader, type StudioMode } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
 import { Inspector } from './Inspector';
 import { ObjectTree } from './ObjectTree';
@@ -15,11 +15,17 @@ import { Timeline } from './Timeline';
 const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 
 export function EditorShell() {
+  const [mode, setMode] = useState<StudioMode>('edit');
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const state = useEditorStore.getState();
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
+      if (event.key === 'Escape' && mode === 'test') {
+        event.preventDefault(); setMode('edit'); return;
+      }
+      if (mode === 'test') return;
       if (command && key === 's') {
         event.preventDefault(); state.setSaveStatus('Salvando...');
         void saveProject(state.project).then(() => state.setSaveStatus('Salvo')).catch(() => state.setSaveStatus('Erro ao salvar'));
@@ -47,7 +53,20 @@ export function EditorShell() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [mode]);
 
-  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><ScenePanel /><div className="editor-columns"><div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></div></section><Timeline /><StatusBar /></main>;
+  return <main className={`app-shell mode-${mode}`}>
+    <EditorHeader mode={mode} onModeChange={setMode} />
+    {mode === 'edit' && <EditorToolbar />}
+    <section className="workspace">
+      {mode === 'edit' && <ScenePanel />}
+      <div className="editor-columns">
+        {mode === 'edit' && <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>}
+        <EditorCanvas testMode={mode === 'test'} />
+        {mode === 'edit' && <div className="right-editor-stack"><Inspector /><ProblemsPanel /></div>}
+      </div>
+    </section>
+    {mode === 'edit' && <Timeline />}
+    <StatusBar />
+  </main>;
 }
