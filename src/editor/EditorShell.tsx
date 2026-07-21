@@ -11,7 +11,6 @@ import { ObjectTree } from './ObjectTree';
 import { ProblemsPanel } from './ProblemsPanel';
 import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
-import { Timeline } from './Timeline';
 
 const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 
@@ -93,6 +92,6 @@ export function EditorShell() {
         <div className="right-editor-stack"><Inspector /><ProblemsPanel /></div>
       </div>
     </section>
-    <Timeline /><StatusBar />
+    <StatusBar />
   </main>;
 }
