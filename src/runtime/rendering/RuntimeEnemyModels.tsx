@@ -22,10 +22,7 @@ import type { RuntimeWorld } from '../RuntimeWorld';
 import { calculatePlayerRendererPixelRatio } from './PlayerRenderQuality';
 import { disposeObject3DResources } from './disposeObject3D';
 
-type Props = {
-  world: RuntimeWorld;
-  onReadyIdsChange?: (ids: ReadonlySet<string>) => void;
-};
+type Props = { world: RuntimeWorld; onReadyIdsChange?: (ids: ReadonlySet<string>) => void };
 
 type EnemyVisual = {
   enemyId: string;
@@ -33,6 +30,7 @@ type EnemyVisual = {
   model: Object3D;
   animation: EnemyAnimationController;
   visualState: RuntimeEnemyVisualState;
+  animationClip?: string;
 };
 
 function normalizeModelToFeet(model: Object3D, height: number): void {
@@ -59,7 +57,6 @@ export function RuntimeEnemyModels({ world, onReadyIdsChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef(world);
   const generationRef = useRef(0);
-
   useEffect(() => { worldRef.current = world; }, [world]);
 
   useEffect(() => {
@@ -99,9 +96,7 @@ export function RuntimeEnemyModels({ world, onReadyIdsChange }: Props) {
       }
       renderer.setSize(width, height, false);
     };
-    const scheduleResize = () => {
-      if (!resizeFrameId) resizeFrameId = requestAnimationFrame(resizeNow);
-    };
+    const scheduleResize = () => { if (!resizeFrameId) resizeFrameId = requestAnimationFrame(resizeNow); };
     const resetClock = () => { lastTime = performance.now(); };
 
     const load = async () => {
@@ -130,8 +125,16 @@ export function RuntimeEnemyModels({ world, onReadyIdsChange }: Props) {
           root.add(parsed);
           scene.add(root);
           const animation = new EnemyAnimationController(parsed, gltf.animations, enemy.animationAssignments);
-          animation.transitionTo(enemy.visualState, 0);
-          visuals.set(enemy.id, { enemyId: enemy.id, root, model: parsed, animation, visualState: enemy.visualState });
+          if (enemy.activeAnimationClip) animation.transitionToNamedClip(enemy.visualState, enemy.activeAnimationClip, 0);
+          else animation.transitionTo(enemy.visualState, 0);
+          visuals.set(enemy.id, {
+            enemyId: enemy.id,
+            root,
+            model: parsed,
+            animation,
+            visualState: enemy.visualState,
+            animationClip: enemy.activeAnimationClip,
+          });
           parsed = null;
         } catch (error) {
           if (parsed) disposeObject3DResources(parsed);
@@ -146,9 +149,7 @@ export function RuntimeEnemyModels({ world, onReadyIdsChange }: Props) {
       const delta = Math.max(0, (now - lastTime) / 1000);
       lastTime = now;
       const currentWorld = worldRef.current;
-      const alpha = RUNTIME_CONFIG.fixedStep > 0
-        ? Math.min(1, Math.max(0, currentWorld.accumulator / RUNTIME_CONFIG.fixedStep))
-        : 1;
+      const alpha = RUNTIME_CONFIG.fixedStep > 0 ? Math.min(1, Math.max(0, currentWorld.accumulator / RUNTIME_CONFIG.fixedStep)) : 1;
 
       for (const visual of visuals.values()) {
         const enemy = currentWorld.enemies.find((candidate) => candidate.id === visual.enemyId);
@@ -157,16 +158,20 @@ export function RuntimeEnemyModels({ world, onReadyIdsChange }: Props) {
           continue;
         }
         visual.root.visible = true;
-        if (enemy.visualState !== visual.visualState) {
-          if (visual.animation.transitionTo(enemy.visualState)) visual.visualState = enemy.visualState;
+        if (enemy.visualState !== visual.visualState || enemy.activeAnimationClip !== visual.animationClip) {
+          const accepted = enemy.activeAnimationClip
+            ? visual.animation.transitionToNamedClip(enemy.visualState, enemy.activeAnimationClip)
+            : visual.animation.transitionTo(enemy.visualState);
+          if (accepted) {
+            visual.visualState = enemy.visualState;
+            visual.animationClip = enemy.activeAnimationClip;
+          }
         }
         visual.animation.update(delta);
         const x = enemy.renderPreviousX + (enemy.x - enemy.renderPreviousX) * alpha;
         const y = enemy.renderPreviousY + (enemy.y - enemy.renderPreviousY) * alpha;
         visual.root.position.set(x + enemy.width / 2, -(y + enemy.height), 0);
-        visual.root.rotation.y = enemy.direction === 'right'
-          ? RUNTIME_CONFIG.playerModelFacingRightRotation
-          : RUNTIME_CONFIG.playerModelFacingLeftRotation;
+        visual.root.rotation.y = enemy.direction === 'right' ? RUNTIME_CONFIG.playerModelFacingRightRotation : RUNTIME_CONFIG.playerModelFacingLeftRotation;
       }
 
       camera.left = currentWorld.camera.x;
