@@ -322,7 +322,7 @@ export function Inspector() {
           <h3>Cena selecionada</h3>
           <label>
             Nome
-            <input value={scene.project?.name ?? scene.name} onChange={(event) => updateScene(scene.id, { name: event.target.value })} />
+            <input value={scene.name} onChange={(event) => updateScene(scene.id, { name: event.target.value })} />
           </label>
           <div className="field-grid">
             <label>
