@@ -27,6 +27,19 @@ describe('PlayerAnimationController', () => {
     expect(mapPlayerAnimationClips([hit]).attack).toBe(hit);
   });
 
+  it('respeita a associação manual independentemente da ordem e do nome do clip', () => {
+    const clips = [clip('Take 001'), clip('Action 7'), clip('Animation 03')];
+    const mapped = mapPlayerAnimationClips(clips, {
+      run: 'Animation 03',
+      attack: 'Take 001',
+      dead: 'Action 7',
+    });
+
+    expect(mapped.run).toBe(clips[2]);
+    expect(mapped.attack).toBe(clips[0]);
+    expect(mapped.dead).toBe(clips[1]);
+  });
+
   it('mantém o mesmo mixer e não reinicia ataque no mesmo estado', () => {
     const root = new Object3D();
     const attack = clip('attack', 0.8);
@@ -44,6 +57,30 @@ describe('PlayerAnimationController', () => {
 
     expect(controller.mixer).toBe(mixer);
     expect(action.time).toBe(timeAfterUpdate);
+    controller.dispose();
+  });
+
+  it('preserva o tempo de reprodução durante um frame lento curto', () => {
+    const run = clip('run', 2);
+    const controller = new PlayerAnimationController(new Object3D(), [run]);
+    controller.transitionTo('run', { fade: 0 });
+    const action = controller.mixer.clipAction(run);
+
+    controller.update(0.2);
+
+    expect(action.time).toBeCloseTo(0.2);
+    controller.dispose();
+  });
+
+  it('limita apenas pausas muito longas do navegador', () => {
+    const run = clip('run', 2);
+    const controller = new PlayerAnimationController(new Object3D(), [run]);
+    controller.transitionTo('run', { fade: 0 });
+    const action = controller.mixer.clipAction(run);
+
+    controller.update(2);
+
+    expect(action.time).toBeCloseTo(0.25);
     controller.dispose();
   });
 
