@@ -7,6 +7,7 @@ import { EditorHeader } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
 import { Inspector } from './Inspector';
 import { ObjectTree } from './ObjectTree';
+import { ProblemsPanel } from './ProblemsPanel';
 import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
 import { Timeline } from './Timeline';
@@ -48,5 +49,5 @@ export function EditorShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><div className="left-editor-stack"><ScenePanel /><ObjectTree /><AssetLibrary /></div><EditorCanvas /><Inspector /></section><Timeline /><StatusBar /></main>;
+  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><div className="left-editor-stack"><ScenePanel /><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></section><Timeline /><StatusBar /></main>;
 }
