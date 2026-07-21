@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import { RuntimeController, type RuntimeControllerSnapshot, type RuntimePauseReason } from './RuntimeController';
-import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { RuntimeDebugOverlay } from './RuntimeDebugOverlay';
 import { loadRuntimeProject } from './RuntimeProjectLoader';
 import { createRuntimePlayer } from './RuntimePlayer';
@@ -90,7 +89,6 @@ export function RuntimeGame({ onExit }: Props) {
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
-  const interpolationAlpha = RUNTIME_CONFIG.fixedStep > 0 ? world.accumulator / RUNTIME_CONFIG.fixedStep : 1;
 
   const togglePause = () => {
     const controller = controllerRef.current;
@@ -111,10 +109,7 @@ export function RuntimeGame({ onExit }: Props) {
       </div>
       <RuntimePlayerModel
         assetId={loadResult.spawn.assetId}
-        player={player}
-        cameraX={camera.x}
-        cameraY={camera.y}
-        interpolationAlpha={interpolationAlpha}
+        world={world}
         onStatusChange={setPlayerModelStatus}
       />
     </div>
