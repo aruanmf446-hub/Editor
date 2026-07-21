@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { saveProject } from '../persistence/projectRepository';
+import { RuntimeGame } from '../runtime/RuntimeGame';
 import { useEditorStore } from '../state/editorStore';
 import { AssetLibrary } from './AssetLibrary';
 import { EditorCanvas } from './EditorCanvas';
@@ -22,9 +23,7 @@ export function EditorShell() {
       const state = useEditorStore.getState();
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
-      if (event.key === 'Escape' && mode === 'test') {
-        event.preventDefault(); setMode('edit'); return;
-      }
+      if (event.key === 'Escape' && mode === 'test') { event.preventDefault(); setMode('edit'); return; }
       if (mode === 'test') return;
       if (command && key === 's') {
         event.preventDefault(); state.setSaveStatus('Salvando...');
@@ -55,18 +54,12 @@ export function EditorShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mode]);
 
-  return <main className={`app-shell mode-${mode}`}>
+  if (mode === 'test') return <main className="app-shell mode-test"><EditorHeader mode={mode} onModeChange={setMode} /><RuntimeGame onExit={() => setMode('edit')} /></main>;
+
+  return <main className="app-shell mode-edit">
     <EditorHeader mode={mode} onModeChange={setMode} />
-    {mode === 'edit' && <EditorToolbar />}
-    <section className="workspace">
-      {mode === 'edit' && <ScenePanel />}
-      <div className="editor-columns">
-        {mode === 'edit' && <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>}
-        <EditorCanvas testMode={mode === 'test'} />
-        {mode === 'edit' && <div className="right-editor-stack"><Inspector /><ProblemsPanel /></div>}
-      </div>
-    </section>
-    {mode === 'edit' && <Timeline />}
-    <StatusBar />
+    <EditorToolbar />
+    <section className="workspace"><ScenePanel /><div className="editor-columns"><div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></div></section>
+    <Timeline /><StatusBar />
   </main>;
 }
