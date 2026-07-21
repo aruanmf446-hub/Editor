@@ -17,6 +17,7 @@ export type RuntimeWorld = {
   completed: boolean;
   physicsSteps: number;
   accumulator: number;
+  droppedPhysicsTime: number;
 };
 
 export function createRuntimePlatforms(scene: ProjectScene): RuntimePlatformState[] {
