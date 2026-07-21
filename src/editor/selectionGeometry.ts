@@ -13,10 +13,7 @@ export function normalizeRect(startX: number, startY: number, endX: number, endY
 
 export function pointerToScene(clientX: number, clientY: number, canvasRect: Pick<DOMRect, 'left' | 'top'>, zoom: number, sceneWidth: number, sceneHeight: number): { x: number; y: number } {
   if (!Number.isFinite(zoom) || zoom <= 0) return { x: 0, y: 0 };
-  return {
-    x: clamp((clientX - canvasRect.left) / zoom, 0, sceneWidth),
-    y: clamp((clientY - canvasRect.top) / zoom, 0, sceneHeight),
-  };
+  return { x: clamp((clientX - canvasRect.left) / zoom, 0, sceneWidth), y: clamp((clientY - canvasRect.top) / zoom, 0, sceneHeight) };
 }
 
 export function getSelectionIntersection(objects: SceneObjectBase[], rect: Rect): string[] {
@@ -61,7 +58,8 @@ export function distributeObjects(scene: ProjectScene, selectedIds: string[], mo
   const last = sorted[sorted.length - 1];
   const totalSize = sorted.reduce((sum, object) => sum + (mode === 'horizontal' ? object.transform.width : object.transform.height), 0);
   const span = mode === 'horizontal' ? last.transform.x + last.transform.width - first.transform.x : last.transform.y + last.transform.height - first.transform.y;
-  const gap = Math.max(0, (span - totalSize) / (sorted.length - 1));
+  if (span < totalSize) return scene;
+  const gap = (span - totalSize) / (sorted.length - 1);
   let cursor = mode === 'horizontal' ? first.transform.x : first.transform.y;
   const next = new Map<string, Transform2D>();
   for (const object of sorted) {
