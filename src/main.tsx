@@ -5,6 +5,7 @@ import './styles/global.css';
 import './styles/assets.css';
 import './styles/el-fuego.css';
 import './styles/editor-config-panels.css';
+import './styles/enemy-range-editor.css';
 import './styles/runtime-enemies.css';
 import './styles/runtime-pickups.css';
 import './styles/runtime-advanced.css';
