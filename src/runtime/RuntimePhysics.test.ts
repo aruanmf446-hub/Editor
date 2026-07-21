@@ -35,8 +35,8 @@ const project: ElFuegoProject = {
 };
 const input = () => ({ left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false });
 
-function world(objects: SceneObjectBase[] = []): RuntimeWorld {
-  const spawn = object('player-spawn', 100, 100, 50, 100, { initialHealth: 3, initialAttack: 1, initialDefense: 1, direction: 'right' });
+function world(objects: SceneObjectBase[] = [], spawnPatch: Partial<SceneObjectBase> = {}): RuntimeWorld {
+  const spawn = object('player-spawn', 100, 100, 50, 100, { initialHealth: 3, initialAttack: 1, initialDefense: 1, direction: 'right', ...spawnPatch });
   const current = { ...scene, objects: [spawn, ...objects] };
   return { project: { ...project, scenes: [current] }, scene: current, sceneRevision: 0, player: createRuntimePlayer(spawn), enemies: [], pickups: [], pickupMemory: {}, platforms: createRuntimePlatforms(current), activeCheckpoint: null, camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
 }
@@ -66,6 +66,20 @@ describe('runtime phase 2', () => {
     updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
     state.input.jumpPressed = false; state.player.grounded = true; state.player.velocityY = 0; state.player.jumpBufferRemaining = 0;
     updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(0);
+  });
+  it('permite um segundo salto apenas quando o pulo duplo está ativo', () => {
+    const state = world([], { doubleJumpEnabled: true });
+    state.player.grounded = true; state.input.jumpPressed = true;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
+    state.input.jumpPressed = false; state.player.velocityY = 100;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
+    state.input.jumpPressed = true;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
+    expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
+    expect(state.player.airJumpsRemaining).toBe(0);
+    state.player.velocityY = 100; state.input.jumpPressed = true;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
+    expect(state.player.velocityY).toBe(100);
   });
   it('reduz a subida ao soltar o pulo', () => {
     const state = world(); state.player.velocityY = -600; state.input.jumpReleased = true;
@@ -106,16 +120,13 @@ describe('runtime phase 2', () => {
     const state = world(); state.paused = true; state.player.velocityX = 100; state.player.coyoteRemaining = .05;
     updateRuntimeWorld(state, RUNTIME_CONFIG.fixedStep); expect(state.player.x).toBe(100); expect(state.player.coyoteRemaining).toBe(.05);
   });
-  it('reaparece fora de colisor quando o spawn foi coberto', () => {
-    const state = world([object('platform', 90, 190, 100, 120)]); state.player.y = 800;
-    resolveWorldMovement(state, .016); expect(state.player.y).toBeLessThan(state.player.spawnY); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
-  });
-  it('pausa com motivo explícito quando não existe respawn válido', () => {
-    const state = world([object('wall', 90, 0, 100, 600)]); state.player.y = 800;
+  it('encerra o teste quando o player cai para fora do mapa', () => {
+    const state = world(); state.player.y = 800;
     resolveWorldMovement(state, .016);
+    expect(state.completed).toBe(true);
     expect(state.paused).toBe(true);
-    expect(state.respawnFailure).toBe(true);
-    expect(state.pauseReason).toBe('invalid-respawn');
+    expect(state.player.health).toBe(0);
+    expect(state.gameOverReason).toBe('fall');
   });
   it('produz resultado equivalente em 60 e 30 frames por segundo', () => {
     const sixty = world(); const thirty = world(); sixty.input.right = true; thirty.input.right = true;
