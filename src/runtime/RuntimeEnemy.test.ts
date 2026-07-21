@@ -194,6 +194,7 @@ describe('RuntimeEnemy', () => {
     expect(boss.phase).toBe(2);
     boss.hurtRemaining = 0;
     updateRuntimeEnemies(world, 1 / 60);
+    updateRuntimeEnemies(world, 1 / 60);
     expect(Math.abs(boss.velocityX)).toBeCloseTo(125);
 
     hitEnemy(world, 2, 10);
