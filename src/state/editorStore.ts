@@ -1,163 +1,60 @@
 import { create } from 'zustand';
 import { createEmptyProject, createEmptyScene } from '../project/projectFactory';
-import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType, Transform2D } from '../types/project';
+import type { ElFuegoProject, ProjectAsset, ProjectScene, SceneObjectBase, SceneObjectType, Transform2D } from '../types/project';
 
 type SaveStatus = 'Salvo' | 'Alterações não salvas' | 'Salvando...' | 'Erro ao salvar' | 'Backup recuperado';
-type EditableObjectPatch = Partial<Pick<SceneObjectBase, 'name' | 'visible' | 'locked' | 'transform'>>;
+type EditableObjectPatch = Partial<SceneObjectBase>;
 type TransformMap = Record<string, Transform2D>;
 
 type EditorState = {
-  project: ElFuegoProject;
-  selectedSceneId: string;
-  selectedObjectId: string | null;
-  selectedObjectIds: string[];
-  clipboard: SceneObjectBase[];
-  saveStatus: SaveStatus;
-  zoom: number;
-  gridEnabled: boolean;
-  past: ElFuegoProject[];
-  future: ElFuegoProject[];
-  setProject: (project: ElFuegoProject, status?: SaveStatus) => void;
-  setSaveStatus: (status: SaveStatus) => void;
-  renameProject: (name: string) => void;
-  selectScene: (sceneId: string) => void;
-  selectObject: (objectId: string | null, additive?: boolean) => void;
-  selectAllObjects: () => void;
-  addScene: () => void;
-  duplicateScene: (sceneId: string) => void;
-  deleteScene: (sceneId: string) => void;
-  updateScene: (sceneId: string, patch: Partial<Pick<ProjectScene, 'name' | 'width' | 'height'>>) => void;
-  moveScene: (sceneId: string, direction: -1 | 1) => void;
-  addObject: (type: SceneObjectType) => void;
-  updateObject: (objectId: string, patch: EditableObjectPatch) => void;
-  previewObjectTransform: (objectId: string, transform: Transform2D) => void;
-  previewObjectTransforms: (transforms: TransformMap) => void;
-  commitTransformPreview: (beforeProject: ElFuegoProject) => void;
-  cancelTransformPreview: (beforeProject: ElFuegoProject) => void;
-  duplicateObject: (objectId: string) => void;
-  duplicateSelected: () => void;
-  copySelected: () => void;
-  pasteClipboard: () => void;
-  deleteObject: (objectId: string) => void;
-  deleteSelected: () => void;
-  moveSelected: (dx: number, dy: number) => void;
-  toggleObjectVisibility: (objectId: string) => void;
-  toggleObjectLock: (objectId: string) => void;
-  undo: () => void;
-  redo: () => void;
-  setZoom: (zoom: number) => void;
-  toggleGrid: () => void;
-  toggleSnap: () => void;
-  newProject: () => void;
+  project: ElFuegoProject; selectedSceneId: string; selectedObjectId: string | null; selectedObjectIds: string[]; clipboard: SceneObjectBase[];
+  saveStatus: SaveStatus; zoom: number; gridEnabled: boolean; past: ElFuegoProject[]; future: ElFuegoProject[];
+  setProject:(project:ElFuegoProject,status?:SaveStatus)=>void; setSaveStatus:(status:SaveStatus)=>void; renameProject:(name:string)=>void;
+  selectScene:(id:string)=>void; selectObject:(id:string|null,additive?:boolean)=>void; selectAllObjects:()=>void;
+  addScene:()=>void; duplicateScene:(id:string)=>void; deleteScene:(id:string)=>void; updateScene:(id:string,patch:Partial<Pick<ProjectScene,'name'|'width'|'height'|'backgroundAssetId'>>)=>void; moveScene:(id:string,direction:-1|1)=>void;
+  addObject:(type:SceneObjectType)=>void; addAssetInstance:(assetId:string)=>void; updateObject:(id:string,patch:EditableObjectPatch)=>void;
+  previewObjectTransform:(id:string,t:Transform2D)=>void; previewObjectTransforms:(map:TransformMap)=>void; commitTransformPreview:(before:ElFuegoProject)=>void; cancelTransformPreview:(before:ElFuegoProject)=>void;
+  duplicateObject:(id:string)=>void; duplicateSelected:()=>void; copySelected:()=>void; pasteClipboard:()=>void; deleteObject:(id:string)=>void; deleteSelected:()=>void; moveSelected:(dx:number,dy:number)=>void;
+  toggleObjectVisibility:(id:string)=>void; toggleObjectLock:(id:string)=>void; registerAsset:(asset:ProjectAsset)=>void; unregisterAsset:(id:string)=>void; renameAssetMetadata:(id:string,name:string)=>void;
+  undo:()=>void; redo:()=>void; setZoom:(z:number)=>void; toggleGrid:()=>void; toggleSnap:()=>void; newProject:()=>void;
 };
 
-const touch = (project: ElFuegoProject): ElFuegoProject => ({ ...project, project: { ...project.project, updatedAt: new Date().toISOString() } });
-const normalizeSceneOrder = (scenes: ProjectScene[]) => scenes.map((scene, order) => ({ ...scene, order }));
-const snapshot = (project: ElFuegoProject) => structuredClone(project);
-const selectedState = (ids: string[]) => ({ selectedObjectIds: ids, selectedObjectId: ids.at(-1) ?? null });
-
-const objectLabels: Partial<Record<SceneObjectType, string>> = {
-  decoration: 'Decoração', obstacle: 'Obstáculo', checkpoint: 'Checkpoint', trigger: 'Gatilho', collectible: 'Coletável', 'dialogue-zone': 'Área de diálogo',
+const touch=(project:ElFuegoProject):ElFuegoProject=>({...project,project:{...project.project,updatedAt:new Date().toISOString()}});
+const snapshot=(project:ElFuegoProject)=>structuredClone(project);
+const selectedState=(ids:string[])=>({selectedObjectIds:ids,selectedObjectId:ids.at(-1)??null});
+const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
+const normalize=(scenes:ProjectScene[])=>scenes.map((scene,order)=>({...scene,order}));
+const labels:Record<SceneObjectType,string>={
+  'player-spawn':'Spawn do player',finish:'Fim da fase',checkpoint:'Checkpoint',platform:'Plataforma',wall:'Parede','drop-zone':'Zona de queda','no-collision-zone':'Área sem colisão','pickup-health':'Recarga de vida','pickup-attack':'Recarga de ataque','pickup-defense':'Recarga de defesa','enemy-cactus':'Cacto',boss:'Boss',decoration:'Decoração',obstacle:'Obstáculo',trigger:'Gatilho','dialogue-zone':'Área de diálogo',collectible:'Coletável'
 };
-
-function createVisualObject(type: SceneObjectType, sceneId: string, index: number): SceneObjectBase {
-  return {
-    id: crypto.randomUUID(), sceneId, type, name: `${objectLabels[type] ?? type} ${index + 1}`,
-    transform: { x: 160 + index * 30, y: 160 + index * 24, z: 0, width: 180, height: 120, scaleX: 1, scaleY: 1, rotation: 0 },
-    visible: true, locked: false, editorOnly: false, gameOnly: false,
-  };
+function bounded(t:Transform2D,scene:ProjectScene):Transform2D{const width=clamp(Number.isFinite(t.width)?t.width:32,32,scene.width);const height=clamp(Number.isFinite(t.height)?t.height:32,32,scene.height);return {...t,width,height,x:clamp(Number.isFinite(t.x)?t.x:0,0,Math.max(0,scene.width-width)),y:clamp(Number.isFinite(t.y)?t.y:0,0,Math.max(0,scene.height-height))};}
+function createObject(type:SceneObjectType,scene:ProjectScene,index:number,assetId?:string):SceneObjectBase{
+  const sizes:Partial<Record<SceneObjectType,[number,number]>>={'player-spawn':[96,160],finish:[96,160],platform:[320,48],wall:[48,240],'drop-zone':[240,80],'pickup-health':[64,64],'pickup-attack':[64,64],'pickup-defense':[64,64],'enemy-cactus':[110,170],boss:[180,240]};
+  const [width,height]=sizes[type]??[180,120];
+  const base:any={id:crypto.randomUUID(),sceneId:scene.id,type,name:`${labels[type]} ${index+1}`,assetId,transform:bounded({x:160+index*24,y:160+index*20,z:0,width,height,scaleX:1,scaleY:1,rotation:0},scene),visible:true,locked:false,editorOnly:false,gameOnly:false};
+  if(type==='player-spawn') Object.assign(base,{direction:'right',initialHealth:3,initialAttack:1,initialDefense:1});
+  if(type==='platform') Object.assign(base,{collisionType:'solid',passThrough:false,visibleInGame:true});
+  if(type==='enemy-cactus') Object.assign(base,{direction:'left',patrolLeft:0,patrolRight:400,visionDistance:420,walkSpeed:70,runSpeed:150,attackDistance:90,damage:1,attackCooldownMs:1200});
+  return base;
 }
 
-export const useEditorStore = create<EditorState>((set, get) => {
-  const initialProject = createEmptyProject('Minha primeira fase');
-  const commit = (mutate: (project: ElFuegoProject) => ElFuegoProject, extra: Partial<EditorState> = {}) => set((state) => ({
-    project: touch(mutate(state.project)), past: [...state.past.slice(-49), snapshot(state.project)], future: [], saveStatus: 'Alterações não salvas', ...extra,
-  }));
-
+export const useEditorStore=create<EditorState>((set,get)=>{
+  const initial=createEmptyProject('Minha primeira fase');
+  const commit=(mutate:(p:ElFuegoProject)=>ElFuegoProject,extra:Partial<EditorState>={})=>set(state=>({project:touch(mutate(state.project)),past:[...state.past.slice(-49),snapshot(state.project)],future:[],saveStatus:'Alterações não salvas',...extra}));
   return {
-    project: initialProject, selectedSceneId: initialProject.scenes[0].id, selectedObjectId: null, selectedObjectIds: [], clipboard: [],
-    saveStatus: 'Alterações não salvas', zoom: 0.55, gridEnabled: true, past: [], future: [],
-    setProject: (project, status = 'Alterações não salvas') => set({ project, selectedSceneId: project.scenes[0]?.id ?? '', ...selectedState([]), saveStatus: status, past: [], future: [] }),
-    setSaveStatus: (saveStatus) => set({ saveStatus }),
-    renameProject: (name) => commit((project) => ({ ...project, project: { ...project.project, name } })),
-    selectScene: (selectedSceneId) => set({ selectedSceneId, ...selectedState([]) }),
-    selectObject: (objectId, additive = false) => set((state) => {
-      if (!objectId) return selectedState([]);
-      if (!additive) return selectedState([objectId]);
-      const ids = state.selectedObjectIds.includes(objectId)
-        ? state.selectedObjectIds.filter((id) => id !== objectId)
-        : [...state.selectedObjectIds, objectId];
-      return selectedState(ids);
-    }),
-    selectAllObjects: () => set((state) => {
-      const scene = state.project.scenes.find((item) => item.id === state.selectedSceneId);
-      return selectedState(scene?.objects.map((object) => object.id) ?? []);
-    }),
-    addScene: () => set((state) => {
-      const scene = createEmptyScene(state.project.scenes.length);
-      return { project: touch({ ...state.project, scenes: [...state.project.scenes, scene] }), past: [...state.past.slice(-49), snapshot(state.project)], future: [], selectedSceneId: scene.id, ...selectedState([]), saveStatus: 'Alterações não salvas' };
-    }),
-    duplicateScene: (sceneId) => set((state) => {
-      const source = state.project.scenes.find((scene) => scene.id === sceneId); if (!source) return state;
-      const duplicateId = crypto.randomUUID();
-      const duplicate = { ...structuredClone(source), id: duplicateId, name: `${source.name} cópia`, objects: source.objects.map((object) => ({ ...structuredClone(object), id: crypto.randomUUID(), sceneId: duplicateId })) };
-      const scenes = [...state.project.scenes]; scenes.splice(state.project.scenes.findIndex((scene) => scene.id === sceneId) + 1, 0, duplicate);
-      return { project: touch({ ...state.project, scenes: normalizeSceneOrder(scenes) }), past: [...state.past.slice(-49), snapshot(state.project)], future: [], selectedSceneId: duplicateId, ...selectedState([]), saveStatus: 'Alterações não salvas' };
-    }),
-    deleteScene: (sceneId) => set((state) => {
-      if (state.project.scenes.length === 1) return state;
-      const scenes = normalizeSceneOrder(state.project.scenes.filter((scene) => scene.id !== sceneId));
-      return { project: touch({ ...state.project, scenes }), past: [...state.past.slice(-49), snapshot(state.project)], future: [], selectedSceneId: scenes[0].id, ...selectedState([]), saveStatus: 'Alterações não salvas' };
-    }),
-    updateScene: (sceneId, patch) => commit((project) => ({ ...project, scenes: project.scenes.map((scene) => scene.id === sceneId ? { ...scene, ...patch } : scene) })),
-    moveScene: (sceneId, direction) => set((state) => {
-      const index = state.project.scenes.findIndex((scene) => scene.id === sceneId); const target = index + direction;
-      if (index < 0 || target < 0 || target >= state.project.scenes.length) return state;
-      const scenes = [...state.project.scenes]; [scenes[index], scenes[target]] = [scenes[target], scenes[index]];
-      return { project: touch({ ...state.project, scenes: normalizeSceneOrder(scenes) }), past: [...state.past.slice(-49), snapshot(state.project)], future: [], saveStatus: 'Alterações não salvas' };
-    }),
-    addObject: (type) => set((state) => {
-      const scene = state.project.scenes.find((item) => item.id === state.selectedSceneId); if (!scene) return state;
-      const object = createVisualObject(type, scene.id, scene.objects.length);
-      const project = touch({ ...state.project, scenes: state.project.scenes.map((item) => item.id === scene.id ? { ...item, objects: [...item.objects, object] } : item) });
-      return { project, past: [...state.past.slice(-49), snapshot(state.project)], future: [], ...selectedState([object.id]), saveStatus: 'Alterações não salvas' };
-    }),
-    updateObject: (objectId, patch) => commit((project) => ({ ...project, scenes: project.scenes.map((scene) => ({ ...scene, objects: scene.objects.map((object) => object.id === objectId ? { ...object, ...patch } : object) })) })),
-    previewObjectTransform: (objectId, transform) => get().previewObjectTransforms({ [objectId]: transform }),
-    previewObjectTransforms: (transforms) => set((state) => ({
-      project: { ...state.project, scenes: state.project.scenes.map((scene) => ({ ...scene, objects: scene.objects.map((object) => transforms[object.id] ? { ...object, transform: transforms[object.id] } : object) })) },
-      saveStatus: 'Alterações não salvas',
-    })),
-    commitTransformPreview: (beforeProject) => set((state) => ({ project: touch(state.project), past: [...state.past.slice(-49), snapshot(beforeProject)], future: [], saveStatus: 'Alterações não salvas' })),
-    cancelTransformPreview: (beforeProject) => set({ project: beforeProject }),
-    duplicateObject: (objectId) => { set({ ...selectedState([objectId]) }); get().duplicateSelected(); },
-    duplicateSelected: () => set((state) => {
-      const scene = state.project.scenes.find((item) => item.id === state.selectedSceneId); if (!scene) return state;
-      const sources = scene.objects.filter((object) => state.selectedObjectIds.includes(object.id)); if (!sources.length) return state;
-      const duplicates = sources.map((source) => ({ ...structuredClone(source), id: crypto.randomUUID(), name: `${source.name} cópia`, transform: { ...source.transform, x: source.transform.x + 32, y: source.transform.y + 32 } }));
-      const project = touch({ ...state.project, scenes: state.project.scenes.map((item) => item.id === scene.id ? { ...item, objects: [...item.objects, ...duplicates] } : item) });
-      return { project, past: [...state.past.slice(-49), snapshot(state.project)], future: [], ...selectedState(duplicates.map((object) => object.id)), saveStatus: 'Alterações não salvas' };
-    }),
-    copySelected: () => set((state) => {
-      const scene = state.project.scenes.find((item) => item.id === state.selectedSceneId);
-      return { clipboard: structuredClone(scene?.objects.filter((object) => state.selectedObjectIds.includes(object.id)) ?? []) };
-    }),
-    pasteClipboard: () => set((state) => {
-      const scene = state.project.scenes.find((item) => item.id === state.selectedSceneId); if (!scene || !state.clipboard.length) return state;
-      const pasted = state.clipboard.map((source) => ({ ...structuredClone(source), id: crypto.randomUUID(), sceneId: scene.id, name: `${source.name} cópia`, transform: { ...source.transform, x: source.transform.x + 24, y: source.transform.y + 24 } }));
-      const project = touch({ ...state.project, scenes: state.project.scenes.map((item) => item.id === scene.id ? { ...item, objects: [...item.objects, ...pasted] } : item) });
-      return { project, clipboard: structuredClone(pasted), past: [...state.past.slice(-49), snapshot(state.project)], future: [], ...selectedState(pasted.map((object) => object.id)), saveStatus: 'Alterações não salvas' };
-    }),
-    deleteObject: (objectId) => { set({ ...selectedState([objectId]) }); get().deleteSelected(); },
-    deleteSelected: () => commit((project) => ({ ...project, scenes: project.scenes.map((scene) => ({ ...scene, objects: scene.objects.filter((object) => !get().selectedObjectIds.includes(object.id)) })) }), selectedState([])),
-    moveSelected: (dx, dy) => commit((project) => ({ ...project, scenes: project.scenes.map((scene) => ({ ...scene, objects: scene.objects.map((object) => get().selectedObjectIds.includes(object.id) && !object.locked ? { ...object, transform: { ...object.transform, x: object.transform.x + dx, y: object.transform.y + dy } } : object) })) })),
-    toggleObjectVisibility: (objectId) => { const object = get().project.scenes.flatMap((scene) => scene.objects).find((item) => item.id === objectId); if (object) get().updateObject(objectId, { visible: !object.visible }); },
-    toggleObjectLock: (objectId) => { const object = get().project.scenes.flatMap((scene) => scene.objects).find((item) => item.id === objectId); if (object) get().updateObject(objectId, { locked: !object.locked }); },
-    undo: () => set((state) => { const previous = state.past.at(-1); if (!previous) return state; return { project: previous, past: state.past.slice(0, -1), future: [snapshot(state.project), ...state.future].slice(0, 50), ...selectedState([]), saveStatus: 'Alterações não salvas' }; }),
-    redo: () => set((state) => { const next = state.future[0]; if (!next) return state; return { project: next, past: [...state.past, snapshot(state.project)].slice(-50), future: state.future.slice(1), ...selectedState([]), saveStatus: 'Alterações não salvas' }; }),
-    setZoom: (zoom) => set({ zoom: Math.min(1.2, Math.max(0.2, zoom)) }),
-    toggleGrid: () => set((state) => ({ gridEnabled: !state.gridEnabled })),
-    toggleSnap: () => commit((project) => ({ ...project, settings: { ...project.settings, snapEnabled: !project.settings.snapEnabled } })),
-    newProject: () => { const project = createEmptyProject('Minha fase'); set({ project, selectedSceneId: project.scenes[0].id, ...selectedState([]), saveStatus: 'Alterações não salvas', zoom: 0.55, past: [], future: [] }); },
+    project:initial,selectedSceneId:initial.scenes[0].id,...selectedState([]),clipboard:[],saveStatus:'Alterações não salvas',zoom:.55,gridEnabled:true,past:[],future:[],
+    setProject:(project,status='Alterações não salvas')=>set({project,selectedSceneId:project.scenes[0]?.id??'',...selectedState([]),saveStatus:status,past:[],future:[]}),setSaveStatus:saveStatus=>set({saveStatus}),renameProject:name=>commit(p=>({...p,project:{...p.project,name}})),
+    selectScene:selectedSceneId=>set({selectedSceneId,...selectedState([])}),selectObject:(id,additive=false)=>set(state=>{if(!id)return selectedState([]);if(!additive)return selectedState([id]);const ids=state.selectedObjectIds.includes(id)?state.selectedObjectIds.filter(x=>x!==id):[...state.selectedObjectIds,id];return selectedState(ids);}),selectAllObjects:()=>set(state=>selectedState(state.project.scenes.find(s=>s.id===state.selectedSceneId)?.objects.map(o=>o.id)??[])),
+    addScene:()=>set(state=>{const scene=createEmptyScene(state.project.scenes.length);return{project:touch({...state.project,scenes:[...state.project.scenes,scene]}),past:[...state.past.slice(-49),snapshot(state.project)],future:[],selectedSceneId:scene.id,...selectedState([]),saveStatus:'Alterações não salvas'};}),
+    duplicateScene:id=>set(state=>{const source=state.project.scenes.find(s=>s.id===id);if(!source)return state;const newId=crypto.randomUUID();const copy={...structuredClone(source),id:newId,name:`${source.name} cópia`,objects:source.objects.map(o=>({...structuredClone(o),id:crypto.randomUUID(),sceneId:newId}))};const scenes=[...state.project.scenes];scenes.splice(scenes.findIndex(s=>s.id===id)+1,0,copy);return{project:touch({...state.project,scenes:normalize(scenes)}),past:[...state.past.slice(-49),snapshot(state.project)],future:[],selectedSceneId:newId,...selectedState([]),saveStatus:'Alterações não salvas'};}),
+    deleteScene:id=>set(state=>{if(state.project.scenes.length===1)return state;const scenes=normalize(state.project.scenes.filter(s=>s.id!==id));return{project:touch({...state.project,scenes}),past:[...state.past.slice(-49),snapshot(state.project)],future:[],selectedSceneId:scenes[0].id,...selectedState([]),saveStatus:'Alterações não salvas'};}),
+    updateScene:(id,patch)=>commit(p=>({...p,scenes:p.scenes.map(s=>s.id===id?{...s,...patch,objects:s.objects.map(o=>({...o,transform:bounded(o.transform,{...s,...patch} as ProjectScene)}))}:s)})),moveScene:(id,d)=>commit(p=>{const scenes=[...p.scenes];const i=scenes.findIndex(s=>s.id===id),j=i+d;if(i<0||j<0||j>=scenes.length)return p;[scenes[i],scenes[j]]=[scenes[j],scenes[i]];return{...p,scenes:normalize(scenes)};}),
+    addObject:type=>set(state=>{const scene=state.project.scenes.find(s=>s.id===state.selectedSceneId);if(!scene)return state;const object=createObject(type,scene,scene.objects.length);const project=touch({...state.project,scenes:state.project.scenes.map(s=>s.id===scene.id?{...s,objects:[...s.objects,object]}:s)});return{project,past:[...state.past.slice(-49),snapshot(state.project)],future:[],...selectedState([object.id]),saveStatus:'Alterações não salvas'};}),
+    addAssetInstance:assetId=>set(state=>{const scene=state.project.scenes.find(s=>s.id===state.selectedSceneId),asset=state.project.assets.find(a=>a.id===assetId);if(!scene||!asset)return state;const type:SceneObjectType=asset.category==='model'?(asset.originalName.toLowerCase().startsWith('player-')?'player-spawn':asset.originalName.toLowerCase().startsWith('enemy-')?'enemy-cactus':asset.originalName.toLowerCase().startsWith('boss-')?'boss':'decoration'):'decoration';const object=createObject(type,scene,scene.objects.length,assetId);const project=touch({...state.project,scenes:state.project.scenes.map(s=>s.id===scene.id?{...s,objects:[...s.objects,object]}:s)});return{project,past:[...state.past.slice(-49),snapshot(state.project)],future:[],...selectedState([object.id]),saveStatus:'Alterações não salvas'};}),
+    updateObject:(id,patch)=>commit(p=>({...p,scenes:p.scenes.map(scene=>({...scene,objects:scene.objects.map(o=>o.id===id?{...o,...patch,transform:bounded((patch.transform??o.transform) as Transform2D,scene)}:o)}))})),previewObjectTransform:(id,t)=>get().previewObjectTransforms({[id]:t}),previewObjectTransforms:map=>set(state=>({project:{...state.project,scenes:state.project.scenes.map(scene=>({...scene,objects:scene.objects.map(o=>map[o.id]?{...o,transform:bounded(map[o.id],scene)}:o)}))},saveStatus:'Alterações não salvas'})),commitTransformPreview:before=>set(state=>({project:touch(state.project),past:[...state.past.slice(-49),snapshot(before)],future:[],saveStatus:'Alterações não salvas'})),cancelTransformPreview:before=>set({project:before}),
+    duplicateObject:id=>{set(selectedState([id]));get().duplicateSelected();},duplicateSelected:()=>set(state=>{const scene=state.project.scenes.find(s=>s.id===state.selectedSceneId);if(!scene)return state;const copies=scene.objects.filter(o=>state.selectedObjectIds.includes(o.id)).map(o=>({...structuredClone(o),id:crypto.randomUUID(),name:`${o.name} cópia`,transform:bounded({...o.transform,x:o.transform.x+32,y:o.transform.y+32},scene)}));if(!copies.length)return state;const project=touch({...state.project,scenes:state.project.scenes.map(s=>s.id===scene.id?{...s,objects:[...s.objects,...copies]}:s)});return{project,past:[...state.past.slice(-49),snapshot(state.project)],future:[],...selectedState(copies.map(o=>o.id)),saveStatus:'Alterações não salvas'};}),copySelected:()=>set(state=>({clipboard:structuredClone(state.project.scenes.find(s=>s.id===state.selectedSceneId)?.objects.filter(o=>state.selectedObjectIds.includes(o.id))??[])})),pasteClipboard:()=>set(state=>{const scene=state.project.scenes.find(s=>s.id===state.selectedSceneId);if(!scene||!state.clipboard.length)return state;const pasted=state.clipboard.map(o=>({...structuredClone(o),id:crypto.randomUUID(),sceneId:scene.id,name:`${o.name} cópia`,transform:bounded({...o.transform,x:o.transform.x+24,y:o.transform.y+24},scene)}));const project=touch({...state.project,scenes:state.project.scenes.map(s=>s.id===scene.id?{...s,objects:[...s.objects,...pasted]}:s)});return{project,clipboard:structuredClone(pasted),past:[...state.past.slice(-49),snapshot(state.project)],future:[],...selectedState(pasted.map(o=>o.id)),saveStatus:'Alterações não salvas'};}),
+    deleteObject:id=>{set(selectedState([id]));get().deleteSelected();},deleteSelected:()=>commit(p=>({...p,scenes:p.scenes.map(s=>({...s,objects:s.objects.filter(o=>!get().selectedObjectIds.includes(o.id))}))}),selectedState([])),moveSelected:(dx,dy)=>commit(p=>({...p,scenes:p.scenes.map(scene=>({...scene,objects:scene.objects.map(o=>get().selectedObjectIds.includes(o.id)&&!o.locked?{...o,transform:bounded({...o.transform,x:o.transform.x+dx,y:o.transform.y+dy},scene)}:o)}))})),toggleObjectVisibility:id=>{const o=get().project.scenes.flatMap(s=>s.objects).find(x=>x.id===id);if(o)get().updateObject(id,{visible:!o.visible});},toggleObjectLock:id=>{const o=get().project.scenes.flatMap(s=>s.objects).find(x=>x.id===id);if(o)get().updateObject(id,{locked:!o.locked});},
+    registerAsset:asset=>commit(p=>p.assets.some(a=>a.id===asset.id)?p:{...p,assets:[...p.assets,asset]}),unregisterAsset:id=>commit(p=>({...p,assets:p.assets.filter(a=>a.id!==id),scenes:p.scenes.map(s=>({...s,backgroundAssetId:s.backgroundAssetId===id?null:s.backgroundAssetId,objects:s.objects.map(o=>o.assetId===id?{...o,assetId:undefined}:o)}))})),renameAssetMetadata:(id,name)=>commit(p=>({...p,assets:p.assets.map(a=>a.id===id?{...a,name}:a)})),
+    undo:()=>set(state=>{const previous=state.past.at(-1);if(!previous)return state;return{project:previous,past:state.past.slice(0,-1),future:[snapshot(state.project),...state.future].slice(0,50),...selectedState([]),saveStatus:'Alterações não salvas'};}),redo:()=>set(state=>{const next=state.future[0];if(!next)return state;return{project:next,past:[...state.past,snapshot(state.project)].slice(-50),future:state.future.slice(1),...selectedState([]),saveStatus:'Alterações não salvas'};}),setZoom:zoom=>set({zoom:clamp(zoom,.2,1.2)}),toggleGrid:()=>set(s=>({gridEnabled:!s.gridEnabled})),toggleSnap:()=>commit(p=>({...p,settings:{...p.settings,snapEnabled:!p.settings.snapEnabled}})),newProject:()=>{const project=createEmptyProject('Minha fase');set({project,selectedSceneId:project.scenes[0].id,...selectedState([]),clipboard:[],saveStatus:'Alterações não salvas',zoom:.55,past:[],future:[]});}
   };
 });
