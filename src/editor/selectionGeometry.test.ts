@@ -7,7 +7,7 @@ const object = (id: string, x: number, y: number, width = 40, height = 40, patch
 });
 const scene = (objects: SceneObjectBase[]): ProjectScene => ({ id: 'scene', name: 'Cena', order: 0, width: 500, height: 300, backgroundAssetId: null, background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 }, objects });
 
- describe('selectionGeometry', () => {
+describe('selectionGeometry', () => {
   it('normaliza retângulo invertido e converte ponteiro com zoom', () => {
     expect(normalizeRect(100, 80, 20, 10)).toEqual({ x: 20, y: 10, width: 80, height: 70 });
     expect(pointerToScene(300, 220, { left: 100, top: 20 }, 2, 500, 300)).toEqual({ x: 100, y: 100 });
@@ -33,10 +33,10 @@ const scene = (objects: SceneObjectBase[]): ProjectScene => ({ id: 'scene', name
     expect(b.transform.x - (a.transform.x + a.transform.width)).toBeCloseTo(c.transform.x - (b.transform.x + b.transform.width));
   });
 
-  it('não cria espaço negativo quando não há espaço suficiente', () => {
+  it('mantém posições quando não há espaço suficiente', () => {
     const input = scene([object('a', 0, 0, 180), object('b', 100, 0, 180), object('c', 200, 0, 180)]);
     const output = distributeObjects(input, ['a', 'b', 'c'], 'horizontal');
-    expect(output.objects[1].transform.x).toBeGreaterThanOrEqual(output.objects[0].transform.x + output.objects[0].transform.width);
+    expect(output).toBe(input);
   });
 
   it('preserva ordem relativa ao trazer seleção múltipla para frente', () => {
