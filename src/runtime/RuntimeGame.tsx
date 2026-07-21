@@ -101,6 +101,7 @@ export function RuntimeGame({ onExit }: Props) {
   };
   const world = view?.world ?? fallbackWorld;
   const { scene, player, camera } = world;
+  const activeBoss = world.enemies.find((enemy) => enemy.kind === 'boss' && !enemy.removed);
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
@@ -113,11 +114,11 @@ export function RuntimeGame({ onExit }: Props) {
   };
 
   return <section className="runtime-game">
-    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
+    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}{activeBoss && <span>Boss {activeBoss.health}/{activeBoss.maxHealth} · Fase {activeBoss.phase}/{activeBoss.phaseCount}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus' && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus' && object.type !== 'boss' && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         {world.pickups.filter((pickup) => pickup.active).map((pickup) => <div key={pickup.id} className={`runtime-entity runtime-pickup-live runtime-pickup-${pickup.kind}`} style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span aria-hidden="true">{pickupIcon[pickup.kind]}</span>{debug && <small>+{pickup.amount}</small>}</div>)}
         <RuntimeEnemiesLayer world={world} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
