@@ -1,7 +1,7 @@
 import { useEditorStore } from '../state/editorStore';
 
 export function EditorToolbar() {
-  const { gridEnabled, toggleGrid, zoom, setZoom, addObject } = useEditorStore();
+  const { project, gridEnabled, toggleGrid, toggleSnap, zoom, setZoom, addObject } = useEditorStore();
   return (
     <nav className="toolbar" aria-label="Ferramentas do editor">
       <div className="tool-groups">
@@ -13,7 +13,8 @@ export function EditorToolbar() {
         <button onClick={() => addObject('collectible')}>Coletável</button>
       </div>
       <div className="view-tools">
-        <button onClick={toggleGrid}>{gridEnabled ? 'Grade ligada' : 'Grade desligada'}</button>
+        <button className={project.settings.snapEnabled ? 'active-tool' : ''} onClick={toggleSnap}>Snap {project.settings.snapEnabled ? 'ligado' : 'desligado'}</button>
+        <button className={gridEnabled ? 'active-tool' : ''} onClick={toggleGrid}>Grade {gridEnabled ? 'ligada' : 'desligada'}</button>
         <button onClick={() => setZoom(0.55)}>Enquadrar</button>
         <span>{Math.round(zoom * 100)}%</span>
       </div>
