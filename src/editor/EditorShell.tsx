@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { saveProject } from '../persistence/projectRepository';
 import { useEditorStore } from '../state/editorStore';
+import { AssetLibrary } from './AssetLibrary';
 import { EditorCanvas } from './EditorCanvas';
 import { EditorHeader } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
@@ -17,36 +18,23 @@ export function EditorShell() {
       const state = useEditorStore.getState();
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
-
       if (command && key === 's') {
-        event.preventDefault();
-        state.setSaveStatus('Salvando...');
+        event.preventDefault(); state.setSaveStatus('Salvando...');
         void saveProject(state.project).then(() => state.setSaveStatus('Salvo')).catch(() => state.setSaveStatus('Erro ao salvar'));
       } else if (command && key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) {
-          state.redo();
-        } else {
-          state.undo();
-        }
+        event.preventDefault(); if (event.shiftKey) state.redo(); else state.undo();
       } else if (command && key === 'y') {
-        event.preventDefault();
-        state.redo();
+        event.preventDefault(); state.redo();
       } else if (!isTyping(event.target) && command && key === 'a') {
-        event.preventDefault();
-        state.selectAllObjects();
+        event.preventDefault(); state.selectAllObjects();
       } else if (!isTyping(event.target) && command && key === 'c') {
-        event.preventDefault();
-        state.copySelected();
+        event.preventDefault(); state.copySelected();
       } else if (!isTyping(event.target) && command && key === 'v') {
-        event.preventDefault();
-        state.pasteClipboard();
+        event.preventDefault(); state.pasteClipboard();
       } else if (!isTyping(event.target) && command && key === 'd') {
-        event.preventDefault();
-        state.duplicateSelected();
+        event.preventDefault(); state.duplicateSelected();
       } else if (!isTyping(event.target) && (event.key === 'Delete' || event.key === 'Backspace') && state.selectedObjectIds.length) {
-        event.preventDefault();
-        state.deleteSelected();
+        event.preventDefault(); state.deleteSelected();
       } else if (!isTyping(event.target) && state.selectedObjectIds.length && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault();
         const amount = event.shiftKey ? 10 : 1;
@@ -59,5 +47,5 @@ export function EditorShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><ScenePanel /><EditorCanvas /><Inspector /></section><Timeline /><StatusBar /></main>;
+  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><ScenePanel /><AssetLibrary /><EditorCanvas /><Inspector /></section><Timeline /><StatusBar /></main>;
 }
