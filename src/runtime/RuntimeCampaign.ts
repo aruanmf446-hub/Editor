@@ -6,6 +6,7 @@ export function restoreCampaignProgress(world: RuntimeWorld, progress: CampaignP
   if (!progress || !world.currentLevelId) return;
   world.campaignProgress = structuredClone(progress);
   world.collectedObjectIds = Object.fromEntries(progress.collectedObjectIds.map((id) => [id, true]));
+  world.collectibleTotals = { ...(progress.collectibleTotals ?? {}) };
   world.variables = { ...progress.storyVariables };
   world.player.maxHealth = Math.max(world.player.maxHealth, progress.lives);
   world.player.health = Math.min(world.player.maxHealth, Math.max(1, progress.lives));
@@ -47,14 +48,17 @@ export function recordCampaignCheckpoint(world: RuntimeWorld): void {
   changed(world);
 }
 
-export function recordCampaignCollectible(world: RuntimeWorld, objectId: string): void {
+export function recordCampaignCollectible(world: RuntimeWorld, objectId: string, collectibleId = objectId, value = 1): void {
   const progress = world.campaignProgress;
-  if (!progress || progress.collectedObjectIds.includes(objectId)) return;
-  progress.collectedObjectIds.push(objectId);
+  if (!progress) return;
+  const firstCollection = !progress.collectedObjectIds.includes(objectId);
+  if (firstCollection) progress.collectedObjectIds.push(objectId);
+  progress.collectibleTotals ??= {};
+  if (firstCollection) progress.collectibleTotals[collectibleId] = (progress.collectibleTotals[collectibleId] ?? 0) + Math.max(0, value);
   progress.lives = world.player.health;
   progress.attack = world.player.attack;
   progress.defense = world.player.defense;
-  changed(world);
+  if (firstCollection) changed(world);
 }
 
 export function recordCampaignStats(world: RuntimeWorld): void {
@@ -64,6 +68,7 @@ export function recordCampaignStats(world: RuntimeWorld): void {
   progress.attack = world.player.attack;
   progress.defense = world.player.defense;
   progress.storyVariables = { ...(world.variables ?? {}) };
+  progress.collectibleTotals = { ...(world.collectibleTotals ?? {}) };
   changed(world);
 }
 
@@ -82,6 +87,7 @@ export function recordCampaignLevelCompletion(world: RuntimeWorld): void {
   progress.attack = world.player.attack;
   progress.defense = world.player.defense;
   progress.storyVariables = { ...(world.variables ?? {}) };
+  progress.collectibleTotals = { ...(world.collectibleTotals ?? {}) };
   const result = { completedAt: new Date().toISOString(), deaths: world.campaignDeaths ?? 0, elapsedMs: Math.round((world.campaignElapsed ?? 0) * 1000) };
   const previous = progress.bestResults[levelId];
   if (!previous || result.elapsedMs < previous.elapsedMs) progress.bestResults[levelId] = result;
