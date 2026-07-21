@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ElFuegoProject, ProjectScene, SceneObjectBase } from '../types/project';
+import {
+  EL_FUEGO_PROJECT_FORMAT,
+  EL_FUEGO_PROJECT_VERSION,
+  type ElFuegoProject,
+  type ProjectScene,
+  type SceneObjectBase,
+} from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
@@ -15,7 +21,20 @@ const spawn = (): SceneObjectBase => ({
 function world(objects: SceneObjectBase[] = []): RuntimeWorld {
   const playerSpawn = spawn();
   const scene: ProjectScene = { id: 'scene', name: 'Cena', order: 0, width: 1000, height: 600, backgroundAssetId: null, background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 }, objects: [playerSpawn, ...objects] };
-  const project = { project: { id: 'p', name: 'P', createdAt: '', updatedAt: '' }, version: 1, scenes: [scene], assets: [], settings: { gridSize: 16, snapEnabled: true } } as ElFuegoProject;
+  const project: ElFuegoProject = {
+    format: EL_FUEGO_PROJECT_FORMAT,
+    version: EL_FUEGO_PROJECT_VERSION,
+    project: { id: 'p', name: 'P', createdAt: '', updatedAt: '' },
+    scenes: [scene],
+    assets: [],
+    settings: {
+      gravity: RUNTIME_CONFIG.gravity,
+      gridSize: 16,
+      snapEnabled: true,
+      defaultSceneWidth: 1000,
+      defaultSceneHeight: 600,
+    },
+  };
   return { project, scene, player: createRuntimePlayer(playerSpawn), platforms: createRuntimePlatforms(scene), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false };
 }
 
