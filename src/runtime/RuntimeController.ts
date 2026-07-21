@@ -1,5 +1,6 @@
 import type { RuntimeProjectSnapshot } from './RuntimeProjectLoader';
 import { resetRuntimeSceneObjectState } from './RuntimeAdvancedObjects';
+import { restoreCampaignProgress } from './RuntimeCampaign';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { createRuntimeEnemies } from './RuntimeEnemy';
 import { RuntimeInput } from './RuntimeInput';
@@ -8,10 +9,11 @@ import { createRuntimePickups } from './RuntimePickup';
 import { updateRuntimeWorld } from './RuntimePhysics';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
+import type { CampaignProgress } from '../types/project';
 
 export type RuntimePauseReason = 'manual' | 'blur' | null;
 export type RuntimeControllerSnapshot = { world: RuntimeWorld; fps: number };
-type Options = { snapshot: RuntimeProjectSnapshot; onRender: (snapshot: RuntimeControllerSnapshot) => void };
+type Options = { snapshot: RuntimeProjectSnapshot; progress?: CampaignProgress | null; onProgressChange?: (progress: CampaignProgress) => void; onRender: (snapshot: RuntimeControllerSnapshot) => void };
 
 export class RuntimeController {
   private readonly input = new RuntimeInput();
@@ -29,6 +31,11 @@ export class RuntimeController {
       project: snapshot.project,
       scene: snapshot.initialScene,
       sceneRevision: 0,
+      currentLevelId: snapshot.levelId,
+      campaignProgress: options.progress ? structuredClone(options.progress) : null,
+      campaignProgressRevision: 0,
+      campaignElapsed: 0,
+      campaignDeaths: 0,
       player: createRuntimePlayer(snapshot.spawn),
       enemies: createRuntimeEnemies(snapshot.initialScene),
       pickups: createRuntimePickups(snapshot.initialScene, pickupMemory),
@@ -54,6 +61,7 @@ export class RuntimeController {
       physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0,
     };
     resetRuntimeSceneObjectState(this.world);
+    restoreCampaignProgress(this.world, options.progress ?? null);
     this.loop = new RuntimeLoop(this.frame);
   }
 
@@ -83,6 +91,8 @@ export class RuntimeController {
     while (this.accumulator >= RUNTIME_CONFIG.fixedStep && steps < RUNTIME_CONFIG.maxPhysicsStepsPerFrame) {
       this.world.input = this.input.snapshot();
       updateRuntimeWorld(this.world, RUNTIME_CONFIG.fixedStep);
+      this.world.campaignElapsed = (this.world.campaignElapsed ?? 0) + RUNTIME_CONFIG.fixedStep;
+      this.emitProgressIfChanged();
       if (steps === 0) this.input.consumeEdges();
       this.accumulator -= RUNTIME_CONFIG.fixedStep;
       steps += 1;
@@ -104,4 +114,11 @@ export class RuntimeController {
     if (this.renderTimer >= 1 / 30) { this.renderTimer = 0; this.emit(frame.fps); }
   };
   private emit(fps: number): void { if (!this.disposed) this.options.onRender({ world: this.world, fps }); }
+  private emittedProgressRevision = 0;
+  private emitProgressIfChanged(): void {
+    const revision = this.world.campaignProgressRevision ?? 0;
+    if (revision === this.emittedProgressRevision || !this.world.campaignProgress) return;
+    this.emittedProgressRevision = revision;
+    this.options.onProgressChange?.(structuredClone(this.world.campaignProgress));
+  }
 }

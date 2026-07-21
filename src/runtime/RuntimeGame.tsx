@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadCampaignProgress, saveCampaignProgress } from '../persistence/campaignProgressRepository';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
+import type { CampaignProgress } from '../types/project';
 import { isRuntimeObjectVisible } from './RuntimeAdvancedObjects';
 import { RuntimeController, type RuntimeControllerSnapshot, type RuntimePauseReason } from './RuntimeController';
 import { RuntimeDebugOverlay } from './RuntimeDebugOverlay';
@@ -14,7 +16,7 @@ import { RuntimeEnemiesLayer } from './rendering/RuntimeEnemiesLayer';
 import { RuntimePlayerModel, type RuntimePlayerModelStatus } from './rendering/RuntimePlayerModel';
 
 type Props = { onExit: () => void };
-type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string };
+type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string } | { loading: true };
 
 const pickupIcon: Record<RuntimePickupKind, string> = { health: '♥', attack: '⚔', defense: '◆' };
 const hiddenRuntimeTypes = new Set(['player-spawn', 'enemy-cactus', 'boss', 'drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone', 'collectible']);
@@ -30,15 +32,32 @@ export function RuntimeGame({ onExit }: Props) {
   const [debug, setDebug] = useState(false);
   const [playerModelStatus, setPlayerModelStatus] = useState<RuntimePlayerModelStatus>('loading');
   const [enemyModelReadyIds, setEnemyModelReadyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [campaignProgress, setCampaignProgress] = useState<CampaignProgress | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCampaignProgress(sourceProject)
+      .then((progress) => { if (!cancelled) setCampaignProgress(progress); })
+      .catch((error) => {
+        console.error('[campaign-progress] falha ao carregar progresso', error);
+        if (!cancelled) setCampaignProgress(null);
+      });
+    return () => { cancelled = true; };
+  }, [sourceProject]);
+
+  const persistProgress = useCallback((progress: CampaignProgress) => {
+    void saveCampaignProgress(progress).catch((error) => console.error('[campaign-progress] falha ao salvar progresso', error));
+  }, []);
 
   const loadResult = useMemo<RuntimeLoadResult>(() => {
-    try { return loadRuntimeProject(sourceProject); }
+    if (campaignProgress === undefined) return { loading: true };
+    try { return loadRuntimeProject(sourceProject, campaignProgress?.lastLevelId); }
     catch (reason) { return { error: reason instanceof Error ? reason.message : 'Projeto inválido.' }; }
-  }, [sourceProject]);
+  }, [campaignProgress, sourceProject]);
 
   const urls = useMemo(() => {
     const map: Record<string, string> = {};
-    if ('error' in loadResult) return map;
+    if ('error' in loadResult || 'loading' in loadResult) return map;
     for (const asset of assets) if (asset.mimeType.startsWith('image/')) map[asset.id] = URL.createObjectURL(asset.blob);
     return map;
   }, [assets, loadResult]);
@@ -46,10 +65,12 @@ export function RuntimeGame({ onExit }: Props) {
   useEffect(() => () => Object.values(urls).forEach(URL.revokeObjectURL), [urls]);
 
   useEffect(() => {
-    if ('error' in loadResult) return;
+    if ('error' in loadResult || 'loading' in loadResult) return;
     let disposed = false;
     const controller = new RuntimeController({
       snapshot: loadResult,
+      progress: campaignProgress,
+      onProgressChange: persistProgress,
       onRender: (snapshot) => { if (!disposed) setView({ ...snapshot, world: snapshot.world }); },
     });
     controllerRef.current = controller;
@@ -65,7 +86,7 @@ export function RuntimeGame({ onExit }: Props) {
       controller.destroy();
       if (controllerRef.current === controller) controllerRef.current = null;
     };
-  }, [loadResult]);
+  }, [campaignProgress, loadResult, persistProgress]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -81,7 +102,7 @@ export function RuntimeGame({ onExit }: Props) {
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || 'error' in loadResult) return;
+    if (!viewport || 'error' in loadResult || 'loading' in loadResult) return;
     const update = () => controllerRef.current?.resize(viewport.clientWidth, viewport.clientHeight);
     update();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
@@ -89,6 +110,7 @@ export function RuntimeGame({ onExit }: Props) {
     return () => observer?.disconnect();
   }, [loadResult]);
 
+  if ('loading' in loadResult) return <section className="runtime-error"><h2>Carregando campanha...</h2></section>;
   if ('error' in loadResult) return <section className="runtime-error"><h2>Não foi possível iniciar o teste</h2><pre>{loadResult.error}</pre><button onClick={onExit}>Voltar ao editor</button></section>;
 
   const fallbackPickupMemory = {};
@@ -96,6 +118,11 @@ export function RuntimeGame({ onExit }: Props) {
     project: loadResult.project,
     scene: loadResult.initialScene,
     sceneRevision: 0,
+    currentLevelId: loadResult.levelId,
+    campaignProgress,
+    campaignProgressRevision: 0,
+    campaignElapsed: 0,
+    campaignDeaths: 0,
     player: createRuntimePlayer(loadResult.spawn),
     enemies: createRuntimeEnemies(loadResult.initialScene),
     pickups: createRuntimePickups(loadResult.initialScene, fallbackPickupMemory),

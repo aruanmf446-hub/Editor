@@ -31,6 +31,22 @@ Projetos com outro `format` são rejeitados. Versões anteriores podem ser migra
     "defaultSceneHeight": 1080
   },
   "assets": [],
+  "campaign": {
+    "chapters": [
+      {
+        "id": "cidade-desertica",
+        "name": "Cidade desértica",
+        "levels": [
+          {
+            "id": "fase-01",
+            "name": "Fase 01",
+            "initialSceneId": "uuid-da-cena",
+            "unlockAfterLevelId": null
+          }
+        ]
+      }
+    ]
+  },
   "scenes": [
     {
       "id": "uuid",
@@ -55,6 +71,9 @@ Projetos com outro `format` são rejeitados. Versões anteriores podem ser migra
 - datas usam ISO 8601 UTC;
 - posições e dimensões devem ser números finitos;
 - objetos desconhecidos devem ser preservados em migrações quando possível.
+- campanha é opcional para manter compatibilidade com projetos antigos;
+- fases apontam para cenas iniciais por ID e não substituem a estrutura de cenas;
+- progresso do jogador não faz parte do pacote editável e é salvo separadamente.
 
 ## Tipos iniciais de objeto
 

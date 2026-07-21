@@ -1,4 +1,4 @@
-import type { DialogueAdvanceMode, DialogueLine, ElFuegoProject, ProjectScene } from '../types/project';
+import type { CampaignProgress, DialogueAdvanceMode, DialogueLine, ElFuegoProject, ProjectScene } from '../types/project';
 import type { RuntimeObjectMemory } from './RuntimeAdvancedObjects';
 import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
@@ -18,6 +18,11 @@ export type RuntimeWorld = {
   project: ElFuegoProject;
   scene: ProjectScene;
   sceneRevision: number;
+  currentLevelId?: string | null;
+  campaignProgress?: CampaignProgress | null;
+  campaignProgressRevision?: number;
+  campaignElapsed?: number;
+  campaignDeaths?: number;
   player: RuntimePlayerState;
   enemies: RuntimeEnemyState[];
   pickups: RuntimePickupState[];

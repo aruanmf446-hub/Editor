@@ -2,6 +2,7 @@ import type { DialogueLine, SceneObjectBase, TriggerAction } from '../types/proj
 import { intersects } from './RuntimeCollision';
 import type { RuntimeBounds, RuntimePlatformState, RuntimeWorld } from './RuntimeWorld';
 import { receivePlayerDamage } from './systems/PlayerCombatSystem';
+import { recordCampaignCollectible, recordCampaignStats } from './RuntimeCampaign';
 
 export type RuntimeObjectMemory = Record<string, true>;
 const bounds = (object: SceneObjectBase): RuntimeBounds => ({ x: object.transform.x, y: object.transform.y, width: object.transform.width, height: object.transform.height });
@@ -112,6 +113,7 @@ function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void 
   if (action.type === 'set-variable') {
     world.variables ??= {};
     world.variables[action.key] = action.value;
+    recordCampaignStats(world);
     return;
   }
   if (action.type === 'set-camera') {
@@ -157,7 +159,10 @@ function updateCollectibles(world: RuntimeWorld): void {
   const collected = memory(world, 'collectedObjectIds');
   for (const object of world.scene.objects) {
     if (object.type !== 'collectible' || !isRuntimeObjectVisible(world, object) || collected[object.id]) continue;
-    if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) collected[object.id] = true;
+    if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) {
+      collected[object.id] = true;
+      recordCampaignCollectible(world, object.id);
+    }
   }
   world.collectiblesRemaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).length;
 }

@@ -38,6 +38,7 @@ export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerD
   player.defending = false;
 
   if (player.health === 0) {
+    world.campaignDeaths = (world.campaignDeaths ?? 0) + 1;
     player.mode = 'dead';
     player.visualState = 'dead';
     player.deathRemaining = RUNTIME_CONFIG.deathDuration;

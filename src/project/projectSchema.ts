@@ -13,6 +13,13 @@ const backgroundSchema = z.object({
   scale:positive.default(1),
   editorOpacity:finite.min(0).max(1).default(1),
 }).default({fit:'cover',positionX:50,positionY:50,scale:1,editorOpacity:1});
+const campaignSchema = z.object({
+  chapters:z.array(z.object({
+    id:z.string().min(1),
+    name:z.string().min(1),
+    levels:z.array(z.object({id:z.string().min(1),name:z.string().min(1),initialSceneId:z.string().min(1),unlockAfterLevelId:z.string().nullable()})),
+  })),
+});
 export const projectSchema = z.object({
   format:z.literal('el-fuego-studio-project'),
   version:z.literal(1),
@@ -20,4 +27,5 @@ export const projectSchema = z.object({
   settings:z.object({gravity:finite,gridSize:positive,snapEnabled:z.boolean(),defaultSceneWidth:positive,defaultSceneHeight:positive}),
   assets:z.array(z.object({id:z.string().min(1),name:z.string().min(1),originalName:z.string().min(1),mimeType:z.string().min(1),size:z.number().int().nonnegative(),checksum:z.string().optional(),category:z.enum(['background','model','texture','audio','thumbnail','other'])})),
   scenes:z.array(z.object({id:z.string().min(1),name:z.string().min(1),order:z.number().int().nonnegative(),width:positive,height:positive,backgroundAssetId:z.string().nullable(),background:backgroundSchema,objects:z.array(objectSchema)})).min(1),
+  campaign:campaignSchema.optional(),
 });

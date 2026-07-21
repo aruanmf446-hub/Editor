@@ -6,6 +6,7 @@ import { createRuntimePickups } from '../RuntimePickup';
 import { createRuntimePlayer } from '../RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from '../RuntimeWorld';
 import { respawnPlayerSafely } from './CollisionSystem';
+import { enterCampaignScene, recordCampaignCheckpoint, recordCampaignLevelCompletion } from '../RuntimeCampaign';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const runtimeObjectBounds = (object: SceneObjectBase) => ({ x: object.transform.x, y: object.transform.y, width: object.transform.width, height: object.transform.height });
@@ -48,6 +49,7 @@ function findSceneSpawn(scene: ProjectScene, world: RuntimeWorld, entryId?: stri
 
 export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene, entryId?: string): void {
   const previous = world.player;
+  enterCampaignScene(world, scene.id);
   const spawn = findSceneSpawn(scene, world, entryId);
   const nextPlayer = createRuntimePlayer(spawn);
   nextPlayer.maxHealth = Math.max(previous.maxHealth, nextPlayer.maxHealth);
@@ -76,6 +78,7 @@ export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene, entr
 }
 
 function completeRuntime(world: RuntimeWorld): void {
+  recordCampaignLevelCompletion(world);
   world.completed = true;
   world.paused = true;
   world.player.velocityX = 0;
@@ -113,6 +116,7 @@ export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
   world.player.spawnX = x;
   world.player.spawnY = y;
   world.player.respawnHealth = respawnHealth;
+  recordCampaignCheckpoint(world);
 }
 
 export function updateRuntimeFinish(world: RuntimeWorld): void {
