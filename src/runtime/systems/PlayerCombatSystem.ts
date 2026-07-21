@@ -1,6 +1,7 @@
 import { RUNTIME_CONFIG } from '../RuntimeConfig';
 import type { RuntimePlayerState } from '../RuntimePlayer';
 import type { RuntimeBounds, RuntimeWorld } from '../RuntimeWorld';
+import { respawnPlayerSafely } from './CollisionSystem';
 
 export type PlayerDamageResult = 'ignored' | 'blocked' | 'damaged' | 'killed';
 export type PlayerDamageType = 'physical' | 'environmental' | 'projectile' | 'unknown';
@@ -8,12 +9,7 @@ export type PlayerDamageInput = { amount: number; sourceX?: number | null; damag
 
 function createAttackHitbox(player: RuntimePlayerState): RuntimeBounds {
   const height = player.standingHeight * RUNTIME_CONFIG.attackHeightFactor;
-  return {
-    x: player.direction === 'right' ? player.x + player.width : player.x - RUNTIME_CONFIG.attackReach,
-    y: player.y + (player.height - height) / 2,
-    width: RUNTIME_CONFIG.attackReach,
-    height,
-  };
+  return { x: player.direction === 'right' ? player.x + player.width : player.x - RUNTIME_CONFIG.attackReach, y: player.y + (player.height - height) / 2, width: RUNTIME_CONFIG.attackReach, height };
 }
 
 function getKnockbackDirection(player: RuntimePlayerState, sourceX?: number | null): -1 | 1 {
@@ -38,20 +34,18 @@ export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerD
 
   if (player.health === 0) {
     world.campaignDeaths = (world.campaignDeaths ?? 0) + 1;
-    world.gameOverReason = 'no-lives';
-    world.completed = true;
-    world.paused = true;
-    player.mode = 'dead';
-    player.visualState = 'dead';
-    player.deathRemaining = RUNTIME_CONFIG.deathDuration;
-    player.invulnerabilityRemaining = 0;
-    player.velocityX = 0;
-    player.velocityY = 0;
+    player.lives = Math.max(0, player.lives - 1);
+    player.mode = 'dead'; player.visualState = 'dead'; player.deathRemaining = RUNTIME_CONFIG.deathDuration;
+    player.invulnerabilityRemaining = 0; player.velocityX = 0; player.velocityY = 0;
+    if (player.lives === 0) {
+      world.gameOverReason = 'no-lives';
+      world.completed = true;
+      world.paused = true;
+    }
     return 'killed';
   }
 
-  player.mode = 'hurt';
-  player.visualState = 'hurt';
+  player.mode = 'hurt'; player.visualState = 'hurt';
   player.hurtRemaining = RUNTIME_CONFIG.damageInvulnerability;
   player.invulnerabilityRemaining = RUNTIME_CONFIG.damageInvulnerability;
   const direction = getKnockbackDirection(player, damage.sourceX);
@@ -69,6 +63,10 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
 
   if (player.mode === 'dead') {
     player.deathRemaining = Math.max(0, player.deathRemaining - delta);
+    if (!world.completed && player.deathRemaining === 0 && respawnPlayerSafely(world)) {
+      player.health = Math.min(player.maxHealth, Math.max(1, player.respawnHealth));
+      player.invulnerabilityRemaining = RUNTIME_CONFIG.respawnInvulnerability;
+    }
     return;
   }
 
@@ -85,27 +83,17 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
     const overlapsActiveWindow = previousElapsed < RUNTIME_CONFIG.attackActiveEnd && nextElapsed >= RUNTIME_CONFIG.attackActiveStart;
     player.attackHitbox = overlapsActiveWindow ? createAttackHitbox(player) : null;
     if (nextElapsed >= RUNTIME_CONFIG.attackDuration) {
-      player.mode = player.grounded ? 'idle' : 'fall';
-      player.attackElapsed = 0;
-      player.attackHitbox = null;
+      player.mode = player.grounded ? 'idle' : 'fall'; player.attackElapsed = 0; player.attackHitbox = null;
       player.attackCooldownRemaining = RUNTIME_CONFIG.attackCooldown;
     }
     return;
   }
 
   player.defending = Boolean(world.input.defend) && player.grounded && !player.crouching;
-  if (player.defending) {
-    player.mode = 'defend';
-    player.velocityX = 0;
-    return;
-  }
+  if (player.defending) { player.mode = 'defend'; player.velocityX = 0; return; }
   if (player.mode === 'defend') player.mode = 'idle';
 
-  // Attack input during cooldown is intentionally ignored. Combo buffering is out of scope.
   if (world.input.attackPressed && player.attackCooldownRemaining === 0 && !player.crouching && !player.defending) {
-    player.mode = 'attack';
-    player.attackSerial += 1;
-    player.attackElapsed = 0;
-    player.attackHitbox = null;
+    player.mode = 'attack'; player.attackSerial += 1; player.attackElapsed = 0; player.attackHitbox = null;
   }
 }
