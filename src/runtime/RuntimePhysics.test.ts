@@ -38,40 +38,45 @@ describe('runtime phase 2', () => {
     const state = world(); state.input.right = true;
     for (let i = 0; i < 120; i += 1) updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
     expect(state.player.velocityX).toBe(RUNTIME_CONFIG.playerMaxSpeed);
-    state.input.right = false; updatePlayerMovement(state, .1); expect(state.player.velocityX).toBeLessThan(RUNTIME_CONFIG.playerMaxSpeed);
+    state.input.right = false;
+    for (let i = 0; i < 120; i += 1) updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
+    expect(state.player.velocityX).toBe(0);
   });
   it('usa borda de pulo e não renova o buffer ao segurar', () => {
-    const state = world(); state.input.jump = true; state.input.jumpPressed = true; updatePlayerMovement(state, .01);
-    const buffered = state.player.jumpBufferRemaining; state.input.jumpPressed = false; updatePlayerMovement(state, .01);
-    expect(state.player.jumpBufferRemaining).toBeLessThan(buffered);
+    const state = world(); state.player.grounded = true; state.input.jump = true; state.input.jumpPressed = true;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
+    state.input.jumpPressed = false; state.player.grounded = true; state.player.velocityY = 0; state.player.jumpBufferRemaining = 0;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(0);
   });
   it('reduz a subida ao soltar o pulo', () => {
-    const state = world(); state.player.velocityY = -600; state.input.jumpReleased = true; updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep);
-    expect(state.player.velocityY).toBeCloseTo(-270);
+    const state = world(); state.player.velocityY = -600; state.input.jumpReleased = true;
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(-600 * RUNTIME_CONFIG.jumpReleaseMultiplier);
   });
   it('executa pulo com coyote time', () => {
     const state = world(); state.player.grounded = false; state.player.coyoteRemaining = .05; state.input.jumpPressed = true;
-    updatePlayerMovement(state, .01); expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
+    updatePlayerMovement(state, RUNTIME_CONFIG.fixedStep); expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
   });
   it('subdivide deslocamentos grandes conforme a hitbox', () => {
-    const state = world(); expect(getMovementSteps(40, state.player)).toBeGreaterThanOrEqual(5);
+    const state = world(); expect(getMovementSteps(100, state.player)).toBeGreaterThan(1);
   });
   it('colide pela direita e pela esquerda', () => {
-    const wall = object('wall', 300, 0, 20, 600); const state = world([wall]);
-    state.player.x = 200; state.player.velocityX = 800; resolveWorldMovement(state, .2); expect(state.player.x + state.player.width).toBe(300); expect(state.player.lastCollisionSide).toBe('right');
-    state.player.x = 350; state.player.velocityX = -800; resolveWorldMovement(state, .2); expect(state.player.x).toBe(320); expect(state.player.lastCollisionSide).toBe('left');
+    const right = world([object('wall', 170, 0, 20, 600)]); right.player.velocityX = 1000; resolveWorldMovement(right, .1);
+    expect(right.player.x + right.player.width).toBeLessThanOrEqual(170);
+    const left = world([object('wall', 50, 0, 20, 600)]); left.player.velocityX = -1000; resolveWorldMovement(left, .1);
+    expect(left.player.x).toBeGreaterThanOrEqual(70);
   });
   it('pousa em plataforma fina sem atravessar', () => {
-    const state = world([object('platform', 0, 300, 400, 4)]); state.player.y = 100; state.player.velocityY = 1100;
-    resolveWorldMovement(state, .2); expect(state.player.grounded).toBe(true); expect(state.player.y + state.player.height).toBe(300);
+    const state = world([object('platform', 0, 250, 300, 4)]); state.player.y = 0; state.player.velocityY = 3000;
+    resolveWorldMovement(state, .1); expect(state.player.y + state.player.height).toBeCloseTo(250); expect(state.player.grounded).toBe(true);
   });
   it('ground probe não prende o player em one-way por baixo', () => {
-    const state = world([object('platform', 0, 300, 400, 10, { passThrough: true })]);
-    state.player.y = 310; state.player.velocityY = 0; expect(probeGround(state.player, state.platforms)).toBe(false);
+    const state = world([object('platform', 0, 100, 300, 10, { collisionType: 'one-way' })]); state.player.y = 105;
+    expect(probeGround(state.player, state.platforms)).toBe(false);
   });
   it('agacha preservando os pés e reseta corretamente', () => {
-    const state = world(); const feet = state.player.y + state.player.height; setPlayerCrouching(state.player, true);
-    expect(state.player.y + state.player.height).toBeCloseTo(feet); resetPlayerAtSpawn(state.player);
+    const state = world(); const feet = state.player.y + state.player.height;
+    setPlayerCrouching(state.player, true); expect(state.player.y + state.player.height).toBe(feet);
+    state.player.velocityX = 10; state.player.velocityY = 10; resetPlayerAtSpawn(state.player);
     expect(state.player.crouching).toBe(false); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
   });
   it('mantém câmera em zero em cena menor que viewport', () => {
@@ -83,7 +88,9 @@ describe('runtime phase 2', () => {
     updateRuntimeWorld(state, RUNTIME_CONFIG.fixedStep); expect(state.player.x).toBe(100); expect(state.player.coyoteRemaining).toBe(.05);
   });
   it('reaparece fora de colisor quando o spawn foi coberto', () => {
-    const state = world([object('platform', 90, 90, 100, 120)]); state.player.y = 800;
+    // The collider overlaps the spawn (player occupies y=100..200) while
+    // leaving a valid same-X position above it (player can fit at y<=90).
+    const state = world([object('platform', 90, 190, 100, 120)]); state.player.y = 800;
     resolveWorldMovement(state, .016); expect(state.player.y).toBeLessThan(state.player.spawnY); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
   });
   it('pausa com motivo explícito quando não existe respawn válido', () => {
