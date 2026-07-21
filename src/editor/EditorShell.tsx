@@ -23,19 +23,30 @@ export function EditorShell() {
         state.setSaveStatus('Salvando...');
         void saveProject(state.project).then(() => state.setSaveStatus('Salvo')).catch(() => state.setSaveStatus('Erro ao salvar'));
       } else if (command && key === 'z') {
-        event.preventDefault(); event.shiftKey ? state.redo() : state.undo();
+        event.preventDefault();
+        if (event.shiftKey) {
+          state.redo();
+        } else {
+          state.undo();
+        }
       } else if (command && key === 'y') {
-        event.preventDefault(); state.redo();
+        event.preventDefault();
+        state.redo();
       } else if (!isTyping(event.target) && command && key === 'a') {
-        event.preventDefault(); state.selectAllObjects();
+        event.preventDefault();
+        state.selectAllObjects();
       } else if (!isTyping(event.target) && command && key === 'c') {
-        event.preventDefault(); state.copySelected();
+        event.preventDefault();
+        state.copySelected();
       } else if (!isTyping(event.target) && command && key === 'v') {
-        event.preventDefault(); state.pasteClipboard();
+        event.preventDefault();
+        state.pasteClipboard();
       } else if (!isTyping(event.target) && command && key === 'd') {
-        event.preventDefault(); state.duplicateSelected();
+        event.preventDefault();
+        state.duplicateSelected();
       } else if (!isTyping(event.target) && (event.key === 'Delete' || event.key === 'Backspace') && state.selectedObjectIds.length) {
-        event.preventDefault(); state.deleteSelected();
+        event.preventDefault();
+        state.deleteSelected();
       } else if (!isTyping(event.target) && state.selectedObjectIds.length && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault();
         const amount = event.shiftKey ? 10 : 1;
