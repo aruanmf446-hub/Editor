@@ -31,6 +31,7 @@ export type RuntimeWorld = {
   activeCheckpoint: RuntimeCheckpointState | null;
   collectedObjectIds?: RuntimeObjectMemory;
   collectibleTotals?: Record<string, number>;
+  collectibleRespawnRemaining?: Record<string, number>;
   triggeredObjectIds?: RuntimeObjectMemory;
   activeTriggerContacts?: RuntimeObjectMemory;
   completedDialogueIds?: RuntimeObjectMemory;
