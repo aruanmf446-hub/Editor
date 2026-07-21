@@ -5,7 +5,10 @@ import type { RuntimeWorld } from '../RuntimeWorld';
 export function RuntimeEnemiesLayer({ world }: { world: RuntimeWorld }) {
   const worldRef = useRef(world);
   const nodesRef = useRef(new Map<string, HTMLDivElement>());
-  worldRef.current = world;
+
+  useEffect(() => {
+    worldRef.current = world;
+  }, [world]);
 
   useEffect(() => {
     let frameId = 0;
