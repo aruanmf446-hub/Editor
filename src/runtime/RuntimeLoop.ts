@@ -17,11 +17,16 @@ export class RuntimeLoop {
   }
 
   stop() {
+    if (!this.running) return;
     this.running = false;
     cancelAnimationFrame(this.frameId);
   }
 
-  setPaused(paused: boolean) { this.paused = paused; }
+  setPaused(paused: boolean) {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    this.previous = performance.now();
+  }
 
   private tick = (time: number) => {
     if (!this.running) return;
