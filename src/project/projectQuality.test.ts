@@ -8,7 +8,7 @@ import { DEFAULT_BACKGROUND_SETTINGS, migrateProject } from './migrateProject';
 import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType } from '../types/project';
 
 const transform = { x: 20, y: 20, z: 0, width: 80, height: 120, scaleX: 1, scaleY: 1, rotation: 0 };
-const makeObject = (sceneId: string, type: SceneObjectType, id = crypto.randomUUID(), patch: Partial<SceneObjectBase> = {}): SceneObjectBase => ({
+const makeObject = (sceneId: string, type: SceneObjectType, id: string = crypto.randomUUID(), patch: Partial<SceneObjectBase> = {}): SceneObjectBase => ({
   id, sceneId, type, name: type, transform: { ...transform }, visible: true, locked: false, editorOnly: false, gameOnly: false, ...patch,
 });
 const projectWithSpawn = (): ElFuegoProject => { const project=createEmptyProject('Teste');const scene=project.scenes[0];scene.objects.push(makeObject(scene.id,'player-spawn'));return project; };
