@@ -4,6 +4,7 @@ import { App } from './app/App';
 import './styles/global.css';
 import './styles/assets.css';
 import './styles/el-fuego.css';
+import './styles/runtime-enemies.css';
 import './styles/responsive.css';
 import './styles/responsive-tablet.css';
 
