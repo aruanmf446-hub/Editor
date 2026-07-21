@@ -13,6 +13,7 @@ export interface ProjectAsset { id: AssetId; name: string; originalName: string;
 export interface Transform2D { x: number; y: number; z: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; }
 export type BackgroundFit = 'cover' | 'contain' | 'stretch' | 'original';
 export interface SceneBackgroundSettings { fit: BackgroundFit; positionX: number; positionY: number; scale: number; editorOpacity: number; }
+export type FinishEndingMode = 'next-scene' | 'target-scene' | 'complete-game';
 export type SceneObjectType = 'player-spawn' | 'finish' | 'checkpoint' | 'platform' | 'wall' | 'drop-zone' | 'no-collision-zone' | 'pickup-health' | 'pickup-attack' | 'pickup-defense' | 'enemy-cactus' | 'boss' | 'decoration' | 'obstacle' | 'trigger' | 'dialogue-zone' | 'collectible';
 
 export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType> {
@@ -26,7 +27,7 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   checkpointOrder?: number; respawnHealth?: number;
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
   triggerOnce?: boolean; triggerId?: string;
-  targetSceneId?: string; requiresAllCollectibles?: boolean;
+  endingMode?: FinishEndingMode; targetSceneId?: string; requiresAllCollectibles?: boolean;
 }
 export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; initialHealth: number; initialAttack: number; initialDefense: number; }
 export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; }
