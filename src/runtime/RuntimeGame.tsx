@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
+import { isRuntimeObjectVisible } from './RuntimeAdvancedObjects';
 import { RuntimeController, type RuntimeControllerSnapshot, type RuntimePauseReason } from './RuntimeController';
 import { RuntimeDebugOverlay } from './RuntimeDebugOverlay';
 import { createRuntimeEnemies } from './RuntimeEnemy';
@@ -38,8 +39,7 @@ export function RuntimeGame({ onExit }: Props) {
   const urls = useMemo(() => {
     const map: Record<string, string> = {};
     if ('error' in loadResult) return map;
-    const used = new Set(loadResult.project.scenes.map((scene) => scene.backgroundAssetId).filter((id): id is string => Boolean(id)));
-    for (const asset of assets) if (used.has(asset.id) && asset.mimeType.startsWith('image/')) map[asset.id] = URL.createObjectURL(asset.blob);
+    for (const asset of assets) if (asset.mimeType.startsWith('image/')) map[asset.id] = URL.createObjectURL(asset.blob);
     return map;
   }, [assets, loadResult]);
 
@@ -68,6 +68,18 @@ export function RuntimeGame({ onExit }: Props) {
   }, [loadResult]);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const dialogue = controllerRef.current?.getWorld().activeDialogue;
+      if (!dialogue || dialogue.contactOnly) return;
+      event.preventDefault();
+      controllerRef.current?.advanceDialogue();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || 'error' in loadResult) return;
     const update = () => controllerRef.current?.resize(viewport.clientWidth, viewport.clientHeight);
@@ -93,10 +105,17 @@ export function RuntimeGame({ onExit }: Props) {
     collectedObjectIds: {},
     triggeredObjectIds: {},
     activeTriggerContacts: {},
+    completedDialogueIds: {},
+    objectVisibilityOverrides: {},
+    collisionEnabledOverrides: {},
+    variables: {},
     collectiblesRemaining: loadResult.initialScene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly).length,
     activeDialogue: null,
+    dialogueAdvanceRequested: false,
     lastTriggerId: null,
     playerNoCollision: false,
+    pendingSceneTransitionId: null,
+    cameraOverride: null,
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
     paused: false,
@@ -109,6 +128,8 @@ export function RuntimeGame({ onExit }: Props) {
   const world = view?.world ?? fallbackWorld;
   const { scene, player, camera } = world;
   const activeBoss = world.enemies.find((enemy) => enemy.kind === 'boss' && !enemy.removed);
+  const activeDialogue = world.activeDialogue;
+  const activeLine = activeDialogue?.lines[activeDialogue.lineIndex];
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
@@ -126,19 +147,23 @@ export function RuntimeGame({ onExit }: Props) {
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-        {scene.objects.filter((object) => object.visible && !object.editorOnly && !hiddenRuntimeTypes.has(object.type) && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
-        {scene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly && !collected[object.id]).map((object) => <div key={object.id} className="runtime-entity runtime-collectible-live" style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span aria-hidden="true">✦</span></div>)}
+        {scene.objects.filter((object) => isRuntimeObjectVisible(world, object) && !hiddenRuntimeTypes.has(object.type) && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).map((object) => <div key={object.id} className="runtime-entity runtime-collectible-live" style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span aria-hidden="true">✦</span></div>)}
         {world.pickups.filter((pickup) => pickup.active).map((pickup) => <div key={pickup.id} className={`runtime-entity runtime-pickup-live runtime-pickup-${pickup.kind}`} style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span aria-hidden="true">{pickupIcon[pickup.kind]}</span>{debug && <small>+{pickup.amount}</small>}</div>)}
         <RuntimeEnemiesLayer world={world} modelReadyIds={enemyModelReadyIds} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
-        {debug && scene.objects.filter((object) => debugZoneTypes.has(object.type) && object.visible && !object.editorOnly).map((object) => <div key={`zone-${object.id}`} className={`runtime-debug-zone runtime-debug-zone--${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {debug && scene.objects.filter((object) => debugZoneTypes.has(object.type) && isRuntimeObjectVisible(world, object)).map((object) => <div key={`zone-${object.id}`} className={`runtime-debug-zone runtime-debug-zone--${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         {debug && world.pickups.filter((pickup) => !pickup.active && pickup.respawnRemaining > 0).map((pickup) => <div key={`pickup-timer-${pickup.id}`} className="runtime-pickup-timer" style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span>{pickup.respawnRemaining.toFixed(1)}s</span></div>)}
         {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
         {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
       </div>
       <RuntimeEnemyModels key={`enemy-models-${world.sceneRevision}`} world={world} onReadyIdsChange={setEnemyModelReadyIds} />
       <RuntimePlayerModel key={`${world.sceneRevision}-${player.assetId ?? 'sem-modelo'}`} assetId={player.assetId} animationAssignments={player.animationAssignments} world={world} onStatusChange={setPlayerModelStatus} />
-      {world.activeDialogue && <div className="runtime-dialogue" role="status"><p>{world.activeDialogue}</p></div>}
+      {activeDialogue && activeLine && <div className={`runtime-dialogue${activeDialogue.contactOnly ? ' runtime-dialogue--notice' : ''}`} role={activeDialogue.contactOnly ? 'status' : 'dialog'} aria-live="polite">
+        {activeLine.portraitAssetId && urls[activeLine.portraitAssetId] && <img src={urls[activeLine.portraitAssetId]} alt="" />}
+        <div>{activeLine.speaker && <strong>{activeLine.speaker}</strong>}<p>{activeLine.text}</p></div>
+        {!activeDialogue.contactOnly && (activeDialogue.advanceMode === 'manual' || activeDialogue.advanceMode === 'both') && <button type="button" onClick={() => controllerRef.current?.advanceDialogue()}>{activeDialogue.lineIndex >= activeDialogue.lines.length - 1 ? 'Fechar' : 'Continuar'}</button>}
+      </div>}
     </div>
     {world.completed && <div className="runtime-pause runtime-complete"><h2>Jogo concluído</h2><p>{scene.name} finalizada.</p><button onClick={onExit}>Voltar ao editor</button></div>}
     {!world.completed && pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}
