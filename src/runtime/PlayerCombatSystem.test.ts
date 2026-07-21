@@ -35,7 +35,7 @@ function world(objects: SceneObjectBase[] = []): RuntimeWorld {
       defaultSceneHeight: 600,
     },
   };
-  return { project, scene, player: createRuntimePlayer(playerSpawn), enemies: [], platforms: createRuntimePlatforms(scene), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false };
+  return { project, scene, sceneRevision: 0, player: createRuntimePlayer(playerSpawn), enemies: [], platforms: createRuntimePlatforms(scene), activeCheckpoint: null, camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false };
 }
 
 describe('player combat phase 3', () => {
@@ -60,11 +60,11 @@ describe('player combat phase 3', () => {
     expect(receivePlayerDamage(state, 2, 200)).toBe('ignored');
   });
 
-  it('morte espera, respawna com vida cheia e invulnerabilidade', () => {
-    const state = world(); state.player.health = 1;
+  it('morte espera, respawna com a vida configurada e invulnerabilidade', () => {
+    const state = world(); state.player.health = 1; state.player.respawnHealth = 2;
     expect(receivePlayerDamage(state, 5, 200)).toBe('killed'); expect(state.player.mode).toBe('dead');
     updatePlayerCombat(state, RUNTIME_CONFIG.deathDuration);
-    expect(state.player.health).toBe(state.player.maxHealth); expect(state.player.mode).toBe('fall');
+    expect(state.player.health).toBe(2); expect(state.player.mode).toBe('fall');
     expect(state.player.invulnerabilityRemaining).toBe(RUNTIME_CONFIG.respawnInvulnerability);
   });
 });

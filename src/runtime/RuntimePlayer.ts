@@ -1,4 +1,4 @@
-import type { SceneObjectBase } from '../types/project';
+import type { PlayerAnimationAssignments, SceneObjectBase } from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import type { RuntimeBounds, RuntimePlatformState } from './RuntimeWorld';
 import { intersects } from './RuntimeCollision';
@@ -18,6 +18,8 @@ export type RuntimePlayerState = {
   width: number;
   height: number;
   standingHeight: number;
+  assetId?: string;
+  animationAssignments?: PlayerAnimationAssignments;
   velocityX: number;
   velocityY: number;
   direction: 'left' | 'right';
@@ -25,6 +27,7 @@ export type RuntimePlayerState = {
   crouching: boolean;
   health: number;
   maxHealth: number;
+  respawnHealth: number;
   attack: number;
   defense: number;
   coyoteRemaining: number;
@@ -56,6 +59,8 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     width: spawn.transform.width,
     height: spawn.transform.height,
     standingHeight: spawn.transform.height,
+    assetId: spawn.assetId,
+    animationAssignments: spawn.animationAssignments,
     velocityX: 0,
     velocityY: 0,
     direction: spawn.direction ?? 'right',
@@ -63,6 +68,7 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     crouching: false,
     health,
     maxHealth: health,
+    respawnHealth: health,
     attack: spawn.initialAttack ?? 1,
     defense: spawn.initialDefense ?? 1,
     coyoteRemaining: 0,

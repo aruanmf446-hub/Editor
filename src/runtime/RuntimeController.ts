@@ -26,9 +26,11 @@ export class RuntimeController {
     this.world = {
       project: snapshot.project,
       scene: snapshot.initialScene,
+      sceneRevision: 0,
       player: createRuntimePlayer(snapshot.spawn),
       enemies: createRuntimeEnemies(snapshot.initialScene),
       platforms: createRuntimePlatforms(snapshot.initialScene),
+      activeCheckpoint: null,
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
       input: this.input.snapshot(), paused: false, completed: false,
       physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0,
@@ -41,7 +43,10 @@ export class RuntimeController {
     if (this.disposed || (this.pauseReason === 'manual' && reason === 'blur')) return;
     this.pauseReason = reason; this.world.paused = true; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(true); this.emit(0);
   }
-  resume(): void { if (!this.disposed) { this.pauseReason = null; this.world.paused = false; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(false); } }
+  resume(): void {
+    if (this.disposed || this.world.completed) return;
+    this.pauseReason = null; this.world.paused = false; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(false);
+  }
   resize(width: number, height: number): void { this.world.camera.viewportWidth = Math.max(1, width); this.world.camera.viewportHeight = Math.max(1, height); }
   getWorld(): RuntimeWorld { return this.world; }
   getPauseReason(): RuntimePauseReason { return this.pauseReason; }
@@ -59,6 +64,12 @@ export class RuntimeController {
       if (steps === 0) this.input.consumeEdges();
       this.accumulator -= RUNTIME_CONFIG.fixedStep;
       steps += 1;
+      if (this.world.paused) {
+        this.clearAccumulator();
+        this.world.physicsSteps = steps;
+        this.emit(frame.fps);
+        return;
+      }
     }
     if (steps === RUNTIME_CONFIG.maxPhysicsStepsPerFrame && this.accumulator >= RUNTIME_CONFIG.fixedStep) {
       const remainder = this.accumulator % RUNTIME_CONFIG.fixedStep;

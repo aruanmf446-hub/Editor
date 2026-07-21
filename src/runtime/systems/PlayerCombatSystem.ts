@@ -67,7 +67,7 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   if (player.mode === 'dead') {
     player.deathRemaining = Math.max(0, player.deathRemaining - delta);
     if (player.deathRemaining === 0 && respawnPlayerSafely(world)) {
-      player.health = player.maxHealth;
+      player.health = Math.min(player.maxHealth, Math.max(1, player.respawnHealth));
       player.invulnerabilityRemaining = RUNTIME_CONFIG.respawnInvulnerability;
     }
     return;
