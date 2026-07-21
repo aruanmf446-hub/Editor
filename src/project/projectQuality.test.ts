@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { calculateFitZoom } from '../editor/calculateFitZoom';
 import { exportProjectArchive, importProjectArchive } from '../persistence/projectArchive';
@@ -28,7 +29,7 @@ describe('validação editorial', () => {
 });
 
 describe('enquadramento', () => {
-  it('usa o menor eixo disponível e respeita limites', () => {expect(calculateFitZoom({availableWidth:1200,availableHeight:700,sceneWidth:1920,sceneHeight:1080,padding:0})).toBeCloseTo(700/1080);expect(calculateFitZoom({availableWidth:100000,availableHeight:100000,sceneWidth:100,sceneHeight:100})).toBe(2);});
+  it('usa o menor eixo disponível e respeita limites', () => {expect(calculateFitZoom({availableWidth:1200,availableHeight:700,sceneWidth:1920,sceneHeight:1080,padding:0})).toBeCloseTo(Math.min(1200/1920,700/1080));expect(calculateFitZoom({availableWidth:100000,availableHeight:100000,sceneWidth:100,sceneHeight:100})).toBe(2);});
   it('retorna zoom seguro para dimensões inválidas', () => {for(const value of [0,-1,Number.NaN,Number.POSITIVE_INFINITY])expect(calculateFitZoom({availableWidth:value,availableHeight:700,sceneWidth:1920,sceneHeight:1080})).toBe(1);expect(calculateFitZoom({availableWidth:20,availableHeight:20,sceneWidth:1920,sceneHeight:1080,padding:1000})).toBeGreaterThan(0);});
 });
 
