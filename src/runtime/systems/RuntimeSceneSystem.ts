@@ -115,6 +115,13 @@ export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
   world.player.respawnHealth = respawnHealth;
 }
 
+function requiredObjectivesCollected(world: RuntimeWorld, finish: SceneObjectBase): boolean {
+  const required = (finish.requiredCollectibleObjectiveIds ?? []).map((id) => id.trim()).filter(Boolean);
+  if (!required.length) return true;
+  const collected = world.collectedObjectiveIds ?? {};
+  return required.every((id) => collected[id]);
+}
+
 export function updateRuntimeFinish(world: RuntimeWorld): void {
   if (world.completed || world.player.mode === 'dead') return;
   const livingBoss = world.enemies.some((enemy) => enemy.kind === 'boss' && !enemy.removed && enemy.health > 0);
@@ -122,6 +129,7 @@ export function updateRuntimeFinish(world: RuntimeWorld): void {
   const finish = world.scene.objects.find((object) => object.type === 'finish' && isRuntimeObjectVisible(world, object) && intersects(world.player, runtimeObjectBounds(object)));
   if (!finish) return;
   if (finish.requiresAllCollectibles && (world.collectiblesRemaining ?? 0) > 0) return;
+  if (!requiredObjectivesCollected(world, finish)) return;
   const target = resolveFinishTarget(world, finish);
   if (!target) { completeRuntime(world); return; }
   enterRuntimeScene(world, target.scene, target.entryId);
