@@ -10,7 +10,10 @@ export function isRuntimeObjectVisible(world: RuntimeWorld, object: SceneObjectB
   return world.objectVisibilityOverrides?.[object.id] ?? (object.visible && !object.editorOnly);
 }
 
-function memory(world: RuntimeWorld, key: 'collectedObjectIds' | 'triggeredObjectIds' | 'activeTriggerContacts' | 'completedDialogueIds'): RuntimeObjectMemory {
+function memory(
+  world: RuntimeWorld,
+  key: 'collectedObjectIds' | 'collectedObjectiveIds' | 'triggeredObjectIds' | 'activeTriggerContacts' | 'completedDialogueIds',
+): RuntimeObjectMemory {
   const existing = world[key];
   if (existing) return existing;
   const created: RuntimeObjectMemory = {};
@@ -153,13 +156,26 @@ function updateTriggers(world: RuntimeWorld): void {
   }
 }
 
+function collectObject(world: RuntimeWorld, object: SceneObjectBase, collected: RuntimeObjectMemory): void {
+  collected[object.id] = true;
+  const value = Math.max(0, Number.isFinite(object.collectibleValue) ? Number(object.collectibleValue) : 1);
+  const kind = object.collectibleKind ?? 'coin';
+  world.collectibleScore = (world.collectibleScore ?? 0) + value;
+  world.collectibleTotalsByKind ??= {};
+  world.collectibleTotalsByKind[kind] = (world.collectibleTotalsByKind[kind] ?? 0) + value;
+  const objectiveId = object.collectibleObjectiveId?.trim();
+  if (objectiveId) memory(world, 'collectedObjectiveIds')[objectiveId] = true;
+}
+
 function updateCollectibles(world: RuntimeWorld): void {
   const collected = memory(world, 'collectedObjectIds');
   for (const object of world.scene.objects) {
     if (object.type !== 'collectible' || !isRuntimeObjectVisible(world, object) || collected[object.id]) continue;
-    if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) collected[object.id] = true;
+    if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) collectObject(world, object, collected);
   }
-  world.collectiblesRemaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).length;
+  const remaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]);
+  world.collectiblesRemaining = remaining.length;
+  world.requiredCollectiblesRemaining = remaining.filter((object) => object.collectibleRequired).length;
 }
 
 export function updateRuntimeAdvancedObjects(world: RuntimeWorld, delta = 0): void {
