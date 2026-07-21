@@ -44,6 +44,24 @@ export interface BossPhaseDefinition {
   transitionDurationMs: number;
 }
 
+export type DialogueAdvanceMode = 'manual' | 'auto' | 'both';
+export interface DialogueLine {
+  id: string;
+  speaker: string;
+  text: string;
+  portraitAssetId?: AssetId;
+  durationMs?: number;
+}
+
+export type TriggerAction =
+  | { id: string; type: 'set-object-visible'; targetObjectId: ObjectId; visible: boolean }
+  | { id: string; type: 'set-collision-enabled'; targetObjectId: ObjectId; enabled: boolean }
+  | { id: string; type: 'activate-enemy'; targetObjectId: ObjectId; active: boolean }
+  | { id: string; type: 'start-dialogue'; targetObjectId: ObjectId }
+  | { id: string; type: 'set-camera'; x: number; y: number; durationMs: number }
+  | { id: string; type: 'transition-scene'; targetSceneId: SceneId }
+  | { id: string; type: 'set-variable'; key: string; value: string | number | boolean };
+
 export type SceneObjectType = 'player-spawn' | 'finish' | 'checkpoint' | 'platform' | 'wall' | 'drop-zone' | 'no-collision-zone' | 'pickup-health' | 'pickup-attack' | 'pickup-defense' | 'enemy-cactus' | 'boss' | 'decoration' | 'obstacle' | 'trigger' | 'dialogue-zone' | 'collectible';
 
 export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType> {
@@ -54,11 +72,12 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   animationAssignments?: PlayerAnimationAssignments;
   enemyAnimationAssignments?: EnemyAnimationAssignments;
   collisionType?: 'solid' | 'one-way' | 'none'; passThrough?: boolean; visibleInGame?: boolean;
-  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number;
+  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number; enemyActiveAtStart?: boolean;
   bossHealth?: number; bossPhaseCount?: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[];
   checkpointOrder?: number; respawnHealth?: number;
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
-  triggerOnce?: boolean; triggerId?: string;
+  triggerOnce?: boolean; triggerId?: string; triggerActions?: TriggerAction[];
+  dialogueLines?: DialogueLine[]; dialogueBlockPlayer?: boolean; dialogueAdvanceMode?: DialogueAdvanceMode; dialogueOnce?: boolean;
   endingMode?: FinishEndingMode; targetSceneId?: string; requiresAllCollectibles?: boolean;
 }
 export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }

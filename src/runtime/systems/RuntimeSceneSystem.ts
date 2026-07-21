@@ -1,5 +1,5 @@
 import type { ProjectScene, SceneObjectBase } from '../../types/project';
-import { resetRuntimeSceneObjectState } from '../RuntimeAdvancedObjects';
+import { isRuntimeObjectVisible, resetRuntimeSceneObjectState } from '../RuntimeAdvancedObjects';
 import { intersects } from '../RuntimeCollision';
 import { createRuntimeEnemies } from '../RuntimeEnemy';
 import { createRuntimePickups } from '../RuntimePickup';
@@ -8,15 +8,12 @@ import { createRuntimePlatforms, type RuntimeWorld } from '../RuntimeWorld';
 import { respawnPlayerSafely } from './CollisionSystem';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-function runtimeObjectBounds(object: SceneObjectBase) {
-  return {
-    x: object.transform.x,
-    y: object.transform.y,
-    width: object.transform.width,
-    height: object.transform.height,
-  };
-}
+const runtimeObjectBounds = (object: SceneObjectBase) => ({
+  x: object.transform.x,
+  y: object.transform.y,
+  width: object.transform.width,
+  height: object.transform.height,
+});
 
 function createFallbackSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObjectBase<'player-spawn'> {
   const previous = world.player;
@@ -59,7 +56,6 @@ export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene): voi
   const previous = world.player;
   const spawn = findSceneSpawn(scene, world);
   const nextPlayer = createRuntimePlayer(spawn);
-
   nextPlayer.maxHealth = Math.max(previous.maxHealth, nextPlayer.maxHealth);
   nextPlayer.health = clamp(previous.health, 1, nextPlayer.maxHealth);
   nextPlayer.respawnHealth = nextPlayer.maxHealth;
@@ -100,7 +96,6 @@ function resolveFinishTarget(world: RuntimeWorld, finish: SceneObjectBase): Proj
       ? world.project.scenes.find((scene) => scene.id === finish.targetSceneId) ?? null
       : null;
   }
-
   const ordered = [...world.project.scenes].sort((a, b) => a.order - b.order);
   const currentIndex = ordered.findIndex((scene) => scene.id === world.scene.id);
   return currentIndex >= 0 ? ordered[currentIndex + 1] ?? null : null;
@@ -108,11 +103,10 @@ function resolveFinishTarget(world: RuntimeWorld, finish: SceneObjectBase): Proj
 
 export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
   const candidates = world.scene.objects
-    .filter((object) => object.type === 'checkpoint' && object.visible && !object.editorOnly && intersects(world.player, runtimeObjectBounds(object)))
+    .filter((object) => object.type === 'checkpoint' && isRuntimeObjectVisible(world, object) && intersects(world.player, runtimeObjectBounds(object)))
     .sort((a, b) => (b.checkpointOrder ?? 1) - (a.checkpointOrder ?? 1));
   const checkpoint = candidates[0];
   if (!checkpoint) return;
-
   const order = checkpoint.checkpointOrder ?? 1;
   if (world.activeCheckpoint?.sceneId === world.scene.id && world.activeCheckpoint.order > order) return;
   if (world.activeCheckpoint?.objectId === checkpoint.id) return;
@@ -122,15 +116,7 @@ export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
   const x = clamp(checkpoint.transform.x + (checkpoint.transform.width - world.player.width) / 2, 0, maxX);
   const y = clamp(checkpoint.transform.y + checkpoint.transform.height - world.player.standingHeight, 0, maxY);
   const respawnHealth = Math.max(1, checkpoint.respawnHealth ?? world.player.maxHealth);
-
-  world.activeCheckpoint = {
-    sceneId: world.scene.id,
-    objectId: checkpoint.id,
-    order,
-    x,
-    y,
-    respawnHealth,
-  };
+  world.activeCheckpoint = { sceneId: world.scene.id, objectId: checkpoint.id, order, x, y, respawnHealth };
   world.player.spawnX = x;
   world.player.spawnY = y;
   world.player.respawnHealth = respawnHealth;
@@ -140,16 +126,13 @@ export function updateRuntimeFinish(world: RuntimeWorld): void {
   if (world.completed || world.player.mode === 'dead') return;
   const livingBoss = world.enemies.some((enemy) => enemy.kind === 'boss' && !enemy.removed && enemy.health > 0);
   if (livingBoss) return;
-
   const finish = world.scene.objects.find((object) =>
     object.type === 'finish'
-    && object.visible
-    && !object.editorOnly
+    && isRuntimeObjectVisible(world, object)
     && intersects(world.player, runtimeObjectBounds(object))
   );
   if (!finish) return;
   if (finish.requiresAllCollectibles && (world.collectiblesRemaining ?? 0) > 0) return;
-
   const target = resolveFinishTarget(world, finish);
   if (!target) {
     completeRuntime(world);

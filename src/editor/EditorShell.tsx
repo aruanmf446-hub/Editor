@@ -4,15 +4,18 @@ import { RuntimeGame } from '../runtime/RuntimeGame';
 import { useEditorStore } from '../state/editorStore';
 import { AssetLibrary } from './AssetLibrary';
 import { BossCombatPanel } from './BossCombatPanel';
+import { DialogueEditorPanel } from './DialogueEditorPanel';
 import { EditorCanvas } from './EditorCanvas';
 import { EditorHeader, type StudioMode } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
+import { EnemyActivationPanel } from './EnemyActivationPanel';
 import { Inspector } from './Inspector';
 import { ObjectTree } from './ObjectTree';
 import { PlayerAnimationPanel } from './PlayerAnimationPanel';
 import { ProblemsPanel } from './ProblemsPanel';
 import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
+import { TriggerActionsPanel } from './TriggerActionsPanel';
 
 const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 type ResponsivePanel = 'canvas' | 'objects' | 'assets' | 'properties' | 'problems';
@@ -77,7 +80,7 @@ export function EditorShell() {
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><PlayerAnimationPanel /><BossCombatPanel /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />
