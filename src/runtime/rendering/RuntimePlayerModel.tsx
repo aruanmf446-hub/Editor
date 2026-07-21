@@ -15,6 +15,7 @@ import {
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getAsset } from '../../persistence/assetRepository';
+import type { PlayerAnimationAssignments } from '../../types/project';
 import { PlayerAnimationController } from '../PlayerAnimationController';
 import { RUNTIME_CONFIG } from '../RuntimeConfig';
 import type { RuntimePlayerVisualState } from '../RuntimePlayer';
@@ -26,6 +27,7 @@ export type RuntimePlayerModelStatus = 'loading' | 'ready' | 'missing' | 'error'
 
 type Props = {
   assetId?: string;
+  animationAssignments?: PlayerAnimationAssignments;
   world: RuntimeWorld;
   onStatusChange?: (status: RuntimePlayerModelStatus) => void;
 };
@@ -86,7 +88,7 @@ function animationOptions() {
   };
 }
 
-export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
+export function RuntimePlayerModel({ assetId, animationAssignments, world, onStatusChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<VisualRuntime | null>(null);
   const worldRef = useRef(world);
@@ -169,7 +171,9 @@ export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
         });
 
         const initialState = worldRef.current.player.visualState;
-        const animation = new PlayerAnimationController(model, gltf.animations);
+        const animation = new PlayerAnimationController(model, gltf.animations, {
+          assignments: animationAssignments,
+        });
         animation.transitionTo(initialState, animationOptions());
 
         const runtime: VisualRuntime = {
@@ -298,7 +302,7 @@ export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
       runtimeRef.current = null;
       if (runtime) disposeRuntime(runtime);
     };
-  }, [assetId]);
+  }, [assetId, animationAssignments]);
 
   return <canvas ref={canvasRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 4 }} />;
 }
