@@ -19,39 +19,11 @@ export type PlayerAnimationAssignments = Partial<Record<PlayerAnimationRole, str
 export type EnemyAnimationRole = 'idle' | 'walk' | 'run' | 'attack' | 'hurt' | 'dead' | 'intro' | 'phase-transition';
 export type EnemyAnimationAssignments = Partial<Record<EnemyAnimationRole, string>>;
 
-export interface BossAttackDefinition {
-  id: string;
-  name: string;
-  animationClip?: string;
-  damage: number;
-  reach: number;
-  durationMs: number;
-  activeStartMs: number;
-  activeEndMs: number;
-  cooldownMs: number;
-  minimumPhase?: number;
-  dashSpeed?: number;
-}
-
-export interface BossPhaseDefinition {
-  id: string;
-  name: string;
-  healthThreshold: number;
-  speedMultiplier: number;
-  damageMultiplier: number;
-  cooldownMultiplier: number;
-  enabledAttackIds: string[];
-  transitionDurationMs: number;
-}
+export interface BossAttackDefinition { id: string; name: string; animationClip?: string; damage: number; reach: number; durationMs: number; activeStartMs: number; activeEndMs: number; cooldownMs: number; minimumPhase?: number; dashSpeed?: number; }
+export interface BossPhaseDefinition { id: string; name: string; healthThreshold: number; speedMultiplier: number; damageMultiplier: number; cooldownMultiplier: number; enabledAttackIds: string[]; transitionDurationMs: number; }
 
 export type DialogueAdvanceMode = 'manual' | 'auto' | 'both';
-export interface DialogueLine {
-  id: string;
-  speaker: string;
-  text: string;
-  portraitAssetId?: AssetId;
-  durationMs?: number;
-}
+export interface DialogueLine { id: string; speaker: string; text: string; portraitAssetId?: AssetId; durationMs?: number; }
 
 export type TriggerAction =
   | { id: string; type: 'set-object-visible'; targetObjectId: ObjectId; visible: boolean }
@@ -59,7 +31,7 @@ export type TriggerAction =
   | { id: string; type: 'activate-enemy'; targetObjectId: ObjectId; active: boolean }
   | { id: string; type: 'start-dialogue'; targetObjectId: ObjectId }
   | { id: string; type: 'set-camera'; x: number; y: number; durationMs: number }
-  | { id: string; type: 'transition-scene'; targetSceneId: SceneId }
+  | { id: string; type: 'transition-scene'; targetSceneId: SceneId; targetEntryId?: string }
   | { id: string; type: 'set-variable'; key: string; value: string | number | boolean };
 
 export type SceneObjectType = 'player-spawn' | 'finish' | 'checkpoint' | 'platform' | 'wall' | 'drop-zone' | 'no-collision-zone' | 'pickup-health' | 'pickup-attack' | 'pickup-defense' | 'enemy-cactus' | 'boss' | 'decoration' | 'obstacle' | 'trigger' | 'dialogue-zone' | 'collectible';
@@ -67,7 +39,7 @@ export type SceneObjectType = 'player-spawn' | 'finish' | 'checkpoint' | 'platfo
 export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType> {
   id: ObjectId; sceneId: SceneId; type: TType; name: string; assetId?: AssetId; transform: Transform2D;
   visible: boolean; locked: boolean; editorOnly: boolean; gameOnly: boolean;
-  direction?: 'left' | 'right';
+  direction?: 'left' | 'right'; entryId?: string; defaultEntry?: boolean;
   initialHealth?: number; initialAttack?: number; initialDefense?: number;
   animationAssignments?: PlayerAnimationAssignments;
   enemyAnimationAssignments?: EnemyAnimationAssignments;
@@ -78,9 +50,9 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
   triggerOnce?: boolean; triggerId?: string; triggerActions?: TriggerAction[];
   dialogueLines?: DialogueLine[]; dialogueBlockPlayer?: boolean; dialogueAdvanceMode?: DialogueAdvanceMode; dialogueOnce?: boolean;
-  endingMode?: FinishEndingMode; targetSceneId?: string; requiresAllCollectibles?: boolean;
+  endingMode?: FinishEndingMode; targetSceneId?: string; targetEntryId?: string; requiresAllCollectibles?: boolean;
 }
-export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }
+export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; entryId?: string; defaultEntry?: boolean; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }
 export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; enemyAnimationAssignments?: EnemyAnimationAssignments; }
 export interface BossObject extends SceneObjectBase<'boss'> { direction: 'left' | 'right'; bossHealth: number; bossPhaseCount: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[]; enemyAnimationAssignments?: EnemyAnimationAssignments; }
 export interface PlatformObject extends SceneObjectBase<'platform'> { collisionType: 'solid' | 'one-way' | 'none'; passThrough: boolean; visibleInGame: boolean; }
