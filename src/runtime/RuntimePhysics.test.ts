@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ElFuegoProject, ProjectScene, SceneObjectBase } from '../types/project';
+import {
+  EL_FUEGO_PROJECT_FORMAT,
+  EL_FUEGO_PROJECT_VERSION,
+  type ElFuegoProject,
+  type ProjectScene,
+  type SceneObjectBase,
+} from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { getMovementSteps, probeGround } from './RuntimeCollision';
 import { updateRuntimeWorld } from './RuntimePhysics';
@@ -13,7 +19,20 @@ const object = (type: SceneObjectBase['type'], x: number, y: number, width: numb
   id: crypto.randomUUID(), sceneId: 'scene', type, name: type, transform: { x, y, z: 0, width, height, scaleX: 1, scaleY: 1, rotation: 0 }, visible: true, locked: false, editorOnly: false, gameOnly: false, ...patch,
 });
 const scene: ProjectScene = { id: 'scene', name: 'Cena', order: 0, width: 1000, height: 600, backgroundAssetId: null, background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 }, objects: [] };
-const project = { project: { id: 'p', name: 'P', createdAt: '', updatedAt: '' }, version: 1, scenes: [scene], assets: [], settings: { gridSize: 16, snapEnabled: true } } as ElFuegoProject;
+const project: ElFuegoProject = {
+  format: EL_FUEGO_PROJECT_FORMAT,
+  version: EL_FUEGO_PROJECT_VERSION,
+  project: { id: 'p', name: 'P', createdAt: '', updatedAt: '' },
+  scenes: [scene],
+  assets: [],
+  settings: {
+    gravity: RUNTIME_CONFIG.gravity,
+    gridSize: 16,
+    snapEnabled: true,
+    defaultSceneWidth: 1000,
+    defaultSceneHeight: 600,
+  },
+};
 const input = () => ({ left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false });
 
 function world(objects: SceneObjectBase[] = []): RuntimeWorld {
