@@ -6,6 +6,7 @@ import { updatePlayerCombat } from './systems/PlayerCombatSystem';
 import { applyGravity } from './systems/GravitySystem';
 import { resolveWorldMovement } from './systems/CollisionSystem';
 import { updateCamera } from './systems/CameraSystem';
+import { updateRuntimeCheckpoints, updateRuntimeFinish } from './systems/RuntimeSceneSystem';
 
 export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   if (world.paused) return;
@@ -18,6 +19,8 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
     resolveWorldMovement(world, delta);
   }
   updateRuntimeEnemies(world, delta);
+  updateRuntimeCheckpoints(world);
+  updateRuntimeFinish(world);
   world.player.visualState = resolvePlayerVisualState(world.player);
   updateCamera(world);
 }
