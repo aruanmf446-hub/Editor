@@ -3,9 +3,11 @@ import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import { RuntimeController, type RuntimeControllerSnapshot, type RuntimePauseReason } from './RuntimeController';
 import { RuntimeDebugOverlay } from './RuntimeDebugOverlay';
+import { createRuntimeEnemies } from './RuntimeEnemy';
 import { loadRuntimeProject } from './RuntimeProjectLoader';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
+import { RuntimeEnemiesLayer } from './rendering/RuntimeEnemiesLayer';
 import { RuntimePlayerModel, type RuntimePlayerModelStatus } from './rendering/RuntimePlayerModel';
 
 type Props = { onExit: () => void };
@@ -74,6 +76,7 @@ export function RuntimeGame({ onExit }: Props) {
     project: loadResult.project,
     scene: loadResult.initialScene,
     player: createRuntimePlayer(loadResult.spawn),
+    enemies: createRuntimeEnemies(loadResult.initialScene),
     platforms: createRuntimePlatforms(loadResult.initialScene),
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
@@ -102,7 +105,8 @@ export function RuntimeGame({ onExit }: Props) {
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        <RuntimeEnemiesLayer world={world} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
         {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
         {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
