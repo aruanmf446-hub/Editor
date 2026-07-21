@@ -16,6 +16,7 @@
     "jszip": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "three": "latest",
     "vite": "latest",
     "zod": "latest",
     "zustand": "latest"
@@ -26,6 +27,7 @@
     "@testing-library/react": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "latest",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
