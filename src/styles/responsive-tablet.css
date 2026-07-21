@@ -1,3 +1,10 @@
+@media (min-width: 981px) and (max-width: 1180px) {
+  .topbar .actions .header-action,
+  .topbar .actions .header-action-label {
+    font-size: 12px;
+  }
+}
+
 @media (min-width: 761px) and (max-width: 980px) {
   .app-shell.mode-edit {
     grid-template-rows: 92px 44px minmax(0, 1fr) 64px 30px;
