@@ -31,24 +31,28 @@ const object = (
   ...patch,
 });
 
-function createWorld(playerX = 700, cactusPatch: Partial<SceneObjectBase> = {}): RuntimeWorld {
+function createWorld(
+  playerX = 700,
+  enemyPatch: Partial<SceneObjectBase> = {},
+  enemyType: 'enemy-cactus' | 'boss' = 'enemy-cactus',
+): RuntimeWorld {
   const spawn = object('player-spawn', playerX, 300, 50, 100, {
     direction: 'right',
-    initialHealth: 5,
+    initialHealth: 8,
     initialAttack: 1,
     initialDefense: 0,
   });
-  const cactus = object('enemy-cactus', 200, 300, 60, 100, {
+  const enemy = object(enemyType, 200, 300, enemyType === 'boss' ? 120 : 60, enemyType === 'boss' ? 150 : 100, {
     direction: 'right',
     patrolLeft: 100,
-    patrolRight: 400,
+    patrolRight: 500,
     visionDistance: 250,
     walkSpeed: 60,
     runSpeed: 180,
     attackDistance: 35,
     damage: 2,
     attackCooldownMs: 500,
-    ...cactusPatch,
+    ...enemyPatch,
   });
   const scene: ProjectScene = {
     id: 'scene',
@@ -58,7 +62,7 @@ function createWorld(playerX = 700, cactusPatch: Partial<SceneObjectBase> = {}):
     height: 600,
     backgroundAssetId: null,
     background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 },
-    objects: [spawn, cactus],
+    objects: [spawn, enemy],
   };
   const project: ElFuegoProject = {
     format: EL_FUEGO_PROJECT_FORMAT,
@@ -88,6 +92,14 @@ function createWorld(playerX = 700, cactusPatch: Partial<SceneObjectBase> = {}):
   };
 }
 
+function hitEnemy(world: RuntimeWorld, serial: number, damage: number): void {
+  const enemy = world.enemies[0];
+  world.player.attack = damage;
+  world.player.attackSerial = serial;
+  world.player.attackHitbox = { x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height };
+  updateRuntimeEnemies(world, 1 / 60);
+}
+
 describe('RuntimeEnemy', () => {
   it('caminha continuamente enquanto o player está fora da visão', () => {
     const world = createWorld(800);
@@ -111,7 +123,7 @@ describe('RuntimeEnemy', () => {
     expect(enemy.mode).toBe('chase');
     expect(enemy.visualState).toBe('run');
     expect(enemy.direction).toBe('right');
-    expect(enemy.velocityX).toBe(enemy.runSpeed);
+    expect(enemy.velocityX).toBe(enemy.baseRunSpeed);
   });
 
   it('volta a caminhar sem congelar depois de perder o player', () => {
@@ -152,5 +164,43 @@ describe('RuntimeEnemy', () => {
 
     expect(Math.abs(enemy.x - startX)).toBeLessThanOrEqual(enemy.walkSpeed / 60 + 0.001);
     expect(enemy.patrolRight).toBeGreaterThanOrEqual(startX);
+  });
+
+  it('recebe dano somente uma vez por serial de ataque e morre', () => {
+    const world = createWorld(430, { enemyHealth: 3 });
+    const enemy = world.enemies[0];
+
+    hitEnemy(world, 1, 2);
+    expect(enemy.health).toBe(1);
+    expect(enemy.mode).toBe('hurt');
+    hitEnemy(world, 1, 2);
+    expect(enemy.health).toBe(1);
+
+    hitEnemy(world, 2, 2);
+    expect(enemy.health).toBe(0);
+    expect(enemy.mode).toBe('dead');
+    updateRuntimeEnemies(world, 1);
+    expect(enemy.removed).toBe(true);
+  });
+
+  it('boss avança de fase, fica mais rápido e conclui a última cena sem portal', () => {
+    const world = createWorld(430, { bossHealth: 12, bossPhaseCount: 3, runSpeed: 100 }, 'boss');
+    const boss = world.enemies[0];
+    expect(boss.kind).toBe('boss');
+    expect(boss.phase).toBe(1);
+
+    hitEnemy(world, 1, 5);
+    expect(boss.health).toBe(7);
+    expect(boss.phase).toBe(2);
+    boss.hurtRemaining = 0;
+    updateRuntimeEnemies(world, 1 / 60);
+    expect(Math.abs(boss.velocityX)).toBeCloseTo(125);
+
+    hitEnemy(world, 2, 10);
+    expect(boss.mode).toBe('dead');
+    updateRuntimeEnemies(world, 1);
+    expect(boss.removed).toBe(true);
+    expect(world.completed).toBe(true);
+    expect(world.paused).toBe(true);
   });
 });
