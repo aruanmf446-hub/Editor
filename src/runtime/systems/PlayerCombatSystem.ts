@@ -4,6 +4,12 @@ import type { RuntimeBounds, RuntimeWorld } from '../RuntimeWorld';
 import { respawnPlayerSafely } from './CollisionSystem';
 
 export type PlayerDamageResult = 'ignored' | 'blocked' | 'damaged' | 'killed';
+export type PlayerDamageType = 'physical' | 'environmental' | 'projectile' | 'unknown';
+export type PlayerDamageInput = {
+  amount: number;
+  sourceX?: number | null;
+  damageType?: PlayerDamageType;
+};
 
 function createAttackHitbox(player: RuntimePlayerState): RuntimeBounds {
   const height = player.standingHeight * RUNTIME_CONFIG.attackHeightFactor;
@@ -15,12 +21,26 @@ function createAttackHitbox(player: RuntimePlayerState): RuntimeBounds {
   };
 }
 
-export function receivePlayerDamage(world: RuntimeWorld, amount: number, sourceX: number): PlayerDamageResult {
+function getKnockbackDirection(player: RuntimePlayerState, sourceX?: number | null): -1 | 1 {
+  if (sourceX == null || !Number.isFinite(sourceX)) return player.direction === 'right' ? -1 : 1;
+  const playerCenterX = player.x + player.width / 2;
+  if (playerCenterX === sourceX) return player.direction === 'right' ? -1 : 1;
+  return playerCenterX >= sourceX ? 1 : -1;
+}
+
+/**
+ * Defense currently blocks every finite positive damage event while the player is grounded.
+ * sourceX and damageType are already part of the API so enemy-facing rules can be added later
+ * without changing the combat system contract.
+ */
+export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerDamageInput, legacySourceX?: number): PlayerDamageResult {
   const player = world.player;
-  if (player.mode === 'dead' || player.invulnerabilityRemaining > 0 || amount <= 0) return 'ignored';
+  const damage = typeof input === 'number' ? { amount: input, sourceX: legacySourceX, damageType: 'unknown' as const } : input;
+  if (player.mode === 'dead' || player.invulnerabilityRemaining > 0) return 'ignored';
+  if (!Number.isFinite(damage.amount) || damage.amount <= 0) return 'ignored';
   if (player.defending) return 'blocked';
 
-  const applied = Math.max(1, amount - player.defense);
+  const applied = Math.max(1, Math.floor(damage.amount - player.defense));
   player.health = Math.max(0, player.health - applied);
   player.attackHitbox = null;
   player.defending = false;
@@ -29,6 +49,7 @@ export function receivePlayerDamage(world: RuntimeWorld, amount: number, sourceX
     player.mode = 'dead';
     player.visualState = 'dead';
     player.deathRemaining = RUNTIME_CONFIG.deathDuration;
+    player.invulnerabilityRemaining = 0;
     player.velocityX = 0;
     player.velocityY = 0;
     return 'killed';
@@ -38,7 +59,7 @@ export function receivePlayerDamage(world: RuntimeWorld, amount: number, sourceX
   player.visualState = 'hurt';
   player.hurtRemaining = RUNTIME_CONFIG.damageInvulnerability;
   player.invulnerabilityRemaining = RUNTIME_CONFIG.damageInvulnerability;
-  const direction = player.x + player.width / 2 < sourceX ? -1 : 1;
+  const direction = getKnockbackDirection(player, damage.sourceX);
   player.velocityX = direction * RUNTIME_CONFIG.knockbackSpeedX;
   player.velocityY = -RUNTIME_CONFIG.knockbackSpeedY;
   player.grounded = false;
@@ -49,6 +70,8 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   const player = world.player;
   player.attackCooldownRemaining = Math.max(0, player.attackCooldownRemaining - delta);
   player.invulnerabilityRemaining = Math.max(0, player.invulnerabilityRemaining - delta);
+
+  if (player.mode !== 'attack' && player.attackHitbox) player.attackHitbox = null;
 
   if (player.mode === 'dead') {
     player.deathRemaining = Math.max(0, player.deathRemaining - delta);
@@ -66,13 +89,14 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   }
 
   if (player.mode === 'attack') {
-    player.attackElapsed += delta;
-    const active = player.attackElapsed >= RUNTIME_CONFIG.attackActiveStart && player.attackElapsed <= RUNTIME_CONFIG.attackActiveEnd;
-    player.attackHitbox = active ? createAttackHitbox(player) : null;
-    if (player.attackElapsed >= RUNTIME_CONFIG.attackDuration) {
+    const previousElapsed = player.attackElapsed;
+    const nextElapsed = previousElapsed + delta;
+    player.attackElapsed = nextElapsed;
+    const overlapsActiveWindow = previousElapsed < RUNTIME_CONFIG.attackActiveEnd && nextElapsed >= RUNTIME_CONFIG.attackActiveStart;
+    player.attackHitbox = overlapsActiveWindow ? createAttackHitbox(player) : null;
+    if (nextElapsed >= RUNTIME_CONFIG.attackDuration) {
       player.mode = player.grounded ? 'idle' : 'fall';
       player.attackElapsed = 0;
-      player.attackHitbox = null;
       player.attackCooldownRemaining = RUNTIME_CONFIG.attackCooldown;
     }
     return;
@@ -86,7 +110,8 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   }
   if (player.mode === 'defend') player.mode = 'idle';
 
-  if (world.input.attackPressed && player.attackCooldownRemaining === 0 && !player.crouching) {
+  // Attack input during cooldown is intentionally ignored. Combo buffering is out of scope.
+  if (world.input.attackPressed && player.attackCooldownRemaining === 0 && !player.crouching && !player.defending) {
     player.mode = 'attack';
     player.attackElapsed = 0;
     player.attackHitbox = null;
