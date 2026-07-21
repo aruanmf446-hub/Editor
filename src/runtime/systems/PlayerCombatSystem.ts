@@ -19,12 +19,25 @@ function getKnockbackDirection(player: RuntimePlayerState, sourceX?: number | nu
   return playerCenterX >= sourceX ? 1 : -1;
 }
 
+function verticallyOverlaps(a: RuntimeBounds, b: RuntimeBounds): boolean {
+  return a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function physicalSourceTouchesPlayer(world: RuntimeWorld, sourceX?: number | null): boolean {
+  if (sourceX == null || !Number.isFinite(sourceX)) return true;
+  const source = world.enemies
+    .filter((enemy) => !enemy.removed && enemy.health > 0)
+    .sort((a, b) => Math.abs((a.x + a.width / 2) - sourceX) - Math.abs((b.x + b.width / 2) - sourceX))[0];
+  return source ? verticallyOverlaps(world.player, source) : true;
+}
+
 /** Defense currently blocks every finite positive damage event while grounded. */
 export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerDamageInput, legacySourceX?: number): PlayerDamageResult {
   const player = world.player;
   const damage = typeof input === 'number' ? { amount: input, sourceX: legacySourceX, damageType: 'unknown' as const } : input;
   if (player.mode === 'dead' || player.invulnerabilityRemaining > 0) return 'ignored';
   if (!Number.isFinite(damage.amount) || damage.amount <= 0) return 'ignored';
+  if (damage.damageType === 'physical' && !physicalSourceTouchesPlayer(world, damage.sourceX)) return 'ignored';
   if (player.defending) return 'blocked';
 
   const applied = Math.max(1, Math.floor(damage.amount - player.defense));
