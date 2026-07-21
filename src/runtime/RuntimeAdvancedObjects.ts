@@ -119,9 +119,15 @@ function updateTriggers(world: RuntimeWorld): void {
   }
 }
 
-function updateCollectibles(world: RuntimeWorld): void {
+function updateCollectibles(world: RuntimeWorld, delta: number): void {
   const collected = memory(world, 'collectedObjectIds');
   world.collectibleTotals ??= {};
+  world.collectibleRespawnRemaining ??= {};
+  for (const [objectId, remaining] of Object.entries(world.collectibleRespawnRemaining)) {
+    const next = remaining - Math.max(0, delta);
+    if (next > 0) world.collectibleRespawnRemaining[objectId] = next;
+    else { delete world.collectibleRespawnRemaining[objectId]; delete collected[objectId]; }
+  }
   for (const object of world.scene.objects) {
     if (object.type !== 'collectible' || !isRuntimeObjectVisible(world, object) || collected[object.id]) continue;
     if (world.player.mode === 'dead' || !intersects(world.player, bounds(object))) continue;
@@ -129,24 +135,27 @@ function updateCollectibles(world: RuntimeWorld): void {
     const definition = object.collectible;
     const collectibleId = definition?.id?.trim() || object.id;
     const value = Math.max(1, definition?.value ?? 1);
+    const respawnable = Boolean(definition?.respawnable);
+    const persistent = definition?.collectOnce !== false && !respawnable;
     world.collectibleTotals[collectibleId] = (world.collectibleTotals[collectibleId] ?? 0) + value;
-    recordCampaignCollectible(world, object.id, collectibleId, value);
+    recordCampaignCollectible(world, object.id, collectibleId, value, persistent);
+    if (respawnable) world.collectibleRespawnRemaining[object.id] = Math.max(0.25, (definition?.respawnDelayMs ?? 3000) / 1000);
     for (const action of definition?.actions ?? []) executeTriggerAction(world, action);
   }
   world.collectiblesRemaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).length;
 }
 
 export function updateRuntimeAdvancedObjects(world: RuntimeWorld, delta = 0): void {
-  updateNoCollisionZone(world); updateDropZones(world); updateTriggers(world); updateDialogues(world, delta); updateCollectibles(world);
+  updateNoCollisionZone(world); updateDropZones(world); updateTriggers(world); updateDialogues(world, delta); updateCollectibles(world, delta);
 }
 
 export function resetRuntimeSceneObjectState(world: RuntimeWorld): void {
-  world.playerNoCollision = false; world.activeDialogue = null; world.dialogueAdvanceRequested = false; world.lastTriggerId = null; world.activeTriggerContacts = {}; world.objectVisibilityOverrides = {}; world.collisionEnabledOverrides = {}; world.pendingSceneTransition = null; world.cameraOverride = null;
+  world.playerNoCollision = false; world.activeDialogue = null; world.dialogueAdvanceRequested = false; world.lastTriggerId = null; world.activeTriggerContacts = {}; world.objectVisibilityOverrides = {}; world.collisionEnabledOverrides = {}; world.pendingSceneTransition = null; world.cameraOverride = null; world.collectibleRespawnRemaining = {};
   for (const object of world.scene.objects) {
     if ((object.type === 'enemy-cactus' || object.type === 'boss') && object.enemyActiveAtStart === false) {
       const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === object.id);
       if (enemy) enemy.removed = true;
     }
   }
-  updateCollectibles(world);
+  updateCollectibles(world, 0);
 }
