@@ -60,14 +60,19 @@ describe('player combat phase 3', () => {
     expect(receivePlayerDamage(state, 2, 200)).toBe('ignored');
   });
 
-  it('encerra o teste ao perder toda a vida', () => {
-    const state = world(); state.player.health = 1;
+  it('encerra o teste ao perder a última tentativa', () => {
+    const state = world();
+    state.player.health = 1;
+    state.player.lives = 1;
+
     expect(receivePlayerDamage(state, 5, 200)).toBe('killed');
     expect(state.player.mode).toBe('dead');
     expect(state.player.health).toBe(0);
+    expect(state.player.lives).toBe(0);
     expect(state.completed).toBe(true);
     expect(state.paused).toBe(true);
     expect(state.gameOverReason).toBe('no-lives');
+
     updatePlayerCombat(state, RUNTIME_CONFIG.deathDuration);
     expect(state.player.health).toBe(0);
     expect(state.player.mode).toBe('dead');
