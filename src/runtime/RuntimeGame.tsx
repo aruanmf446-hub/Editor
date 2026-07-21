@@ -7,7 +7,7 @@ import { loadRuntimeProject } from './RuntimeProjectLoader';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
 
- type Props = { onExit: () => void };
+type Props = { onExit: () => void };
 type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string };
 
 export function RuntimeGame({ onExit }: Props) {
@@ -43,7 +43,6 @@ export function RuntimeGame({ onExit }: Props) {
     });
     controllerRef.current = controller;
     controller.start();
-    setView({ world: controller.getWorld(), fps: 0 });
     const onBlur = () => {
       controller.pause('blur');
       setPauseReason(controller.getPauseReason());
@@ -59,14 +58,13 @@ export function RuntimeGame({ onExit }: Props) {
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    const controller = controllerRef.current;
-    if (!viewport || !controller) return;
-    const update = () => controller.resize(viewport.clientWidth, viewport.clientHeight);
+    if (!viewport || 'error' in loadResult) return;
+    const update = () => controllerRef.current?.resize(viewport.clientWidth, viewport.clientHeight);
     update();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     observer?.observe(viewport);
     return () => observer?.disconnect();
-  }, [view?.world]);
+  }, [loadResult]);
 
   if ('error' in loadResult) return <section className="runtime-error"><h2>Não foi possível iniciar o teste</h2><pre>{loadResult.error}</pre><button onClick={onExit}>Voltar ao editor</button></section>;
 
