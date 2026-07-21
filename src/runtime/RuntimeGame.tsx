@@ -8,19 +8,19 @@ import { loadRuntimeProject } from './RuntimeProjectLoader';
 
 type Props = { onExit: () => void };
 
+type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string };
+
 export function RuntimeGame({ onExit }: Props) {
   const sourceProject = useEditorStore((state) => state.project);
   const assets = useAssetStore((state) => state.assets);
   const [paused, setPaused] = useState(false);
   const [debug, setDebug] = useState(false);
   const [fps, setFps] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<RuntimeInput | null>(null);
   const loopRef = useRef<RuntimeLoop | null>(null);
 
-  const snapshot = useMemo(() => {
-    try { setError(null); return loadRuntimeProject(sourceProject); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Projeto inválido.'); return null; }
+  const loadResult = useMemo<RuntimeLoadResult>(() => {
+    try { return loadRuntimeProject(sourceProject); }
+    catch (reason) { return { error: reason instanceof Error ? reason.message : 'Projeto inválido.' }; }
   }, [sourceProject]);
 
   const urls = useMemo(() => {
@@ -32,20 +32,25 @@ export function RuntimeGame({ onExit }: Props) {
   useEffect(() => () => Object.values(urls).forEach(URL.revokeObjectURL), [urls]);
 
   useEffect(() => {
-    if (!snapshot) return;
+    if ('error' in loadResult) return;
     const input = new RuntimeInput();
-    input.start(); inputRef.current = input;
-    const loop = new RuntimeLoop((frame) => setFps(frame.fps));
-    loop.setPaused(paused); loop.start(); loopRef.current = loop;
+    input.start();
+    let fpsTimer = 0;
+    const loop = new RuntimeLoop((frame) => {
+      fpsTimer += frame.delta;
+      if (fpsTimer >= .25) { fpsTimer = 0; setFps(frame.fps); }
+    });
+    loop.start(); loopRef.current = loop;
     const onBlur = () => setPaused(true);
     window.addEventListener('blur', onBlur);
-    return () => { window.removeEventListener('blur', onBlur); loop.stop(); input.stop(); loopRef.current = null; inputRef.current = null; };
-  }, [snapshot]);
+    return () => { window.removeEventListener('blur', onBlur); loop.stop(); input.stop(); loopRef.current = null; };
+  }, [loadResult]);
 
   useEffect(() => { loopRef.current?.setPaused(paused); }, [paused]);
 
-  if (error || !snapshot) return <section className="runtime-error"><h2>Não foi possível iniciar o teste</h2><pre>{error}</pre><button onClick={onExit}>Voltar ao editor</button></section>;
+  if ('error' in loadResult) return <section className="runtime-error"><h2>Não foi possível iniciar o teste</h2><pre>{loadResult.error}</pre><button onClick={onExit}>Voltar ao editor</button></section>;
 
+  const snapshot = loadResult;
   const scene = snapshot.initialScene;
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
