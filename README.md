@@ -31,6 +31,12 @@ Runtime do jogo
 
 O editor nunca deve implementar diretamente a física ou o comportamento das entidades. Ele apenas cria e altera dados que o runtime interpreta.
 
+## Regra temporária de spawn
+
+O modelo editorial atual aceita **um único spawn global do player por projeto**. A validação usa os códigos `MISSING_GLOBAL_SPAWN` e `MULTIPLE_GLOBAL_SPAWNS`.
+
+Essa regra é deliberadamente temporária. Quando o runtime de transições for recuperado, ela poderá evoluir para spawn por cena ou spawn de entrada associado à transição, sem reutilizar os códigos antigos com outro significado.
+
 ## Documentação
 
 - [Produto](docs/PRODUCT.md)
