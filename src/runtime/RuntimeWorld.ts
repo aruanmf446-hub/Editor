@@ -1,4 +1,5 @@
 import type { ElFuegoProject, ProjectScene } from '../types/project';
+import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
 import type { RuntimePlayerState } from './RuntimePlayer';
 
@@ -10,6 +11,7 @@ export type RuntimeWorld = {
   project: ElFuegoProject;
   scene: ProjectScene;
   player: RuntimePlayerState;
+  enemies: RuntimeEnemyState[];
   platforms: RuntimePlatformState[];
   camera: RuntimeCameraState;
   input: RuntimeInputSnapshot;
