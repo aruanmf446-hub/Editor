@@ -24,6 +24,7 @@ export type RuntimeDialogueState = {
   advanceMode: DialogueAdvanceMode;
   blockPlayer: boolean;
   once: boolean;
+  contactOnly?: boolean;
 };
 export type RuntimeCameraOverride = { x: number; y: number; remaining: number };
 export type RuntimeVariableValue = string | number | boolean;
