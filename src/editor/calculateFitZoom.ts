@@ -17,11 +17,14 @@ export function calculateFitZoom({
   minZoom = 0.1,
   maxZoom = 2,
 }: FitZoomInput): number {
-  if (availableWidth <= 0 || availableHeight <= 0 || sceneWidth <= 0 || sceneHeight <= 0) {
-    return minZoom;
-  }
-  const usableWidth = Math.max(1, availableWidth - padding * 2);
-  const usableHeight = Math.max(1, availableHeight - padding * 2);
+  const values = [availableWidth, availableHeight, sceneWidth, sceneHeight, padding, minZoom, maxZoom];
+  if (values.some((value) => !Number.isFinite(value)) || availableWidth <= 0 || availableHeight <= 0 || sceneWidth <= 0 || sceneHeight <= 0) return 1;
+  const safeMin = Math.max(0.01, Math.min(minZoom, maxZoom));
+  const safeMax = Math.max(safeMin, maxZoom);
+  const safePadding = Math.max(0, padding);
+  const usableWidth = Math.max(1, availableWidth - Math.min(safePadding * 2, availableWidth - 1));
+  const usableHeight = Math.max(1, availableHeight - Math.min(safePadding * 2, availableHeight - 1));
   const zoom = Math.min(usableWidth / sceneWidth, usableHeight / sceneHeight);
-  return Math.min(maxZoom, Math.max(minZoom, zoom));
+  if (!Number.isFinite(zoom) || zoom <= 0) return 1;
+  return Math.min(safeMax, Math.max(safeMin, zoom));
 }
