@@ -1,0 +1,172 @@
+import { describe, expect, it } from 'vitest';
+import {
+  EL_FUEGO_PROJECT_FORMAT,
+  EL_FUEGO_PROJECT_VERSION,
+  type ElFuegoProject,
+  type ProjectScene,
+  type SceneObjectBase,
+} from '../types/project';
+import { updateRuntimeAdvancedObjects } from './RuntimeAdvancedObjects';
+import { RUNTIME_CONFIG } from './RuntimeConfig';
+import { createRuntimeEnemies } from './RuntimeEnemy';
+import { createRuntimePickups } from './RuntimePickup';
+import { createRuntimePlayer } from './RuntimePlayer';
+import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
+import { resolveWorldMovement } from './systems/CollisionSystem';
+import { updateRuntimeFinish } from './systems/RuntimeSceneSystem';
+
+const object = (
+  type: SceneObjectBase['type'],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  patch: Partial<SceneObjectBase> = {},
+): SceneObjectBase => ({
+  id: `${type}-${crypto.randomUUID()}`,
+  sceneId: 'scene',
+  type,
+  name: patch.name ?? type,
+  transform: { x, y, z: 0, width, height, scaleX: 1, scaleY: 1, rotation: 0 },
+  visible: true,
+  locked: false,
+  editorOnly: false,
+  gameOnly: false,
+  ...patch,
+});
+
+function createWorld(objects: SceneObjectBase[]): RuntimeWorld {
+  const spawn = object('player-spawn', 100, 300, 50, 100, {
+    initialHealth: 5,
+    initialAttack: 1,
+    initialDefense: 0,
+    direction: 'right',
+  });
+  const scene: ProjectScene = {
+    id: 'scene',
+    name: 'Cena',
+    order: 0,
+    width: 1000,
+    height: 600,
+    backgroundAssetId: null,
+    background: { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 },
+    objects: [spawn, ...objects],
+  };
+  const project: ElFuegoProject = {
+    format: EL_FUEGO_PROJECT_FORMAT,
+    version: EL_FUEGO_PROJECT_VERSION,
+    project: { id: 'project', name: 'Projeto', createdAt: '', updatedAt: '' },
+    settings: { gravity: RUNTIME_CONFIG.gravity, gridSize: 16, snapEnabled: true, defaultSceneWidth: 1000, defaultSceneHeight: 600 },
+    assets: [],
+    scenes: [scene],
+  };
+  const pickupMemory = {};
+  return {
+    project,
+    scene,
+    sceneRevision: 0,
+    player: createRuntimePlayer(spawn),
+    enemies: createRuntimeEnemies(scene),
+    pickups: createRuntimePickups(scene, pickupMemory),
+    pickupMemory,
+    platforms: createRuntimePlatforms(scene),
+    activeCheckpoint: null,
+    collectedObjectIds: {},
+    triggeredObjectIds: {},
+    activeTriggerContacts: {},
+    collectiblesRemaining: 0,
+    activeDialogue: null,
+    lastTriggerId: null,
+    playerNoCollision: false,
+    camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 },
+    input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false },
+    paused: false,
+    completed: false,
+    physicsSteps: 0,
+    accumulator: 0,
+    droppedPhysicsTime: 0,
+  };
+}
+
+describe('RuntimeAdvancedObjects', () => {
+  it('trata obstáculo como colisor sólido', () => {
+    const obstacle = object('obstacle', 200, 250, 60, 150);
+    const world = createWorld([obstacle]);
+    expect(world.platforms).toEqual(expect.arrayContaining([expect.objectContaining({ id: obstacle.id, oneWay: false })]));
+  });
+
+  it('zona de queda mata o player e inicia o ciclo de respawn', () => {
+    const drop = object('drop-zone', 80, 280, 200, 160);
+    const world = createWorld([drop]);
+
+    updateRuntimeAdvancedObjects(world);
+
+    expect(world.player.health).toBe(0);
+    expect(world.player.mode).toBe('dead');
+    expect(world.player.deathRemaining).toBeGreaterThan(0);
+  });
+
+  it('área sem colisão permite atravessar um obstáculo', () => {
+    const zone = object('no-collision-zone', 80, 250, 300, 200);
+    const obstacle = object('obstacle', 160, 250, 40, 200);
+    const world = createWorld([zone, obstacle]);
+    world.player.velocityX = 1000;
+
+    updateRuntimeAdvancedObjects(world);
+    resolveWorldMovement(world, .1);
+
+    expect(world.playerNoCollision).toBe(true);
+    expect(world.player.x).toBe(200);
+  });
+
+  it('gatilho dispara na entrada, não repete durante contato e respeita triggerOnce', () => {
+    const trigger = object('trigger', 80, 280, 200, 160, { triggerId: 'abrir-porta', triggerOnce: true });
+    const world = createWorld([trigger]);
+
+    updateRuntimeAdvancedObjects(world);
+    expect(world.lastTriggerId).toBe('abrir-porta');
+    expect(world.triggeredObjectIds?.[trigger.id]).toBe(true);
+
+    world.lastTriggerId = null;
+    updateRuntimeAdvancedObjects(world);
+    expect(world.lastTriggerId).toBeNull();
+
+    world.player.x = 500;
+    updateRuntimeAdvancedObjects(world);
+    world.player.x = 100;
+    updateRuntimeAdvancedObjects(world);
+    expect(world.lastTriggerId).toBeNull();
+  });
+
+  it('exibe o nome da área de diálogo somente enquanto houver contato', () => {
+    const dialogue = object('dialogue-zone', 80, 280, 200, 160, { name: 'Cuidado com os cactos!' });
+    const world = createWorld([dialogue]);
+
+    updateRuntimeAdvancedObjects(world);
+    expect(world.activeDialogue).toBe('Cuidado com os cactos!');
+
+    world.player.x = 500;
+    updateRuntimeAdvancedObjects(world);
+    expect(world.activeDialogue).toBeNull();
+  });
+
+  it('coleta item uma vez e libera fim que exige todos os colecionáveis', () => {
+    const collectible = object('collectible', 300, 300, 50, 50);
+    const finish = object('finish', 100, 300, 80, 100, { endingMode: 'complete-game', requiresAllCollectibles: true });
+    const world = createWorld([collectible, finish]);
+
+    updateRuntimeAdvancedObjects(world);
+    expect(world.collectiblesRemaining).toBe(1);
+    updateRuntimeFinish(world);
+    expect(world.completed).toBe(false);
+
+    world.player.x = 300;
+    updateRuntimeAdvancedObjects(world);
+    expect(world.collectiblesRemaining).toBe(0);
+    expect(world.collectedObjectIds?.[collectible.id]).toBe(true);
+
+    world.player.x = 110;
+    updateRuntimeFinish(world);
+    expect(world.completed).toBe(true);
+  });
+});
