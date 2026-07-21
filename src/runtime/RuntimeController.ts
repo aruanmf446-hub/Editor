@@ -9,10 +9,7 @@ import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
 export type RuntimePauseReason = 'manual' | 'blur' | null;
 export type RuntimeControllerSnapshot = { world: RuntimeWorld; fps: number };
 
-type Options = {
-  snapshot: RuntimeProjectSnapshot;
-  onRender: (snapshot: RuntimeControllerSnapshot) => void;
-};
+type Options = { snapshot: RuntimeProjectSnapshot; onRender: (snapshot: RuntimeControllerSnapshot) => void };
 
 export class RuntimeController {
   private readonly input = new RuntimeInput();
@@ -31,59 +28,24 @@ export class RuntimeController {
       player: createRuntimePlayer(snapshot.spawn),
       platforms: createRuntimePlatforms(snapshot.initialScene),
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
-      input: this.input.snapshot(),
-      paused: false,
-      completed: false,
-      physicsSteps: 0,
-      accumulator: 0,
+      input: this.input.snapshot(), paused: false, completed: false,
+      physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0,
     };
     this.loop = new RuntimeLoop(this.frame);
   }
 
-  start(): void {
-    if (this.disposed) return;
-    this.input.start();
-    this.loop.start();
-  }
-
+  start(): void { if (!this.disposed) { this.input.start(); this.loop.start(); } }
   pause(reason: Exclude<RuntimePauseReason, null>): void {
-    if (this.disposed) return;
-    if (this.pauseReason === 'manual' && reason === 'blur') return;
-    this.pauseReason = reason;
-    this.world.paused = true;
-    this.accumulator = 0;
-    this.world.accumulator = 0;
-    this.input.resetEdges();
-    this.loop.setPaused(true);
-    this.emit(0);
+    if (this.disposed || (this.pauseReason === 'manual' && reason === 'blur')) return;
+    this.pauseReason = reason; this.world.paused = true; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(true); this.emit(0);
   }
-
-  resume(): void {
-    if (this.disposed) return;
-    this.pauseReason = null;
-    this.world.paused = false;
-    this.accumulator = 0;
-    this.world.accumulator = 0;
-    this.input.resetEdges();
-    this.loop.setPaused(false);
-  }
-
-  resize(width: number, height: number): void {
-    this.world.camera.viewportWidth = Math.max(1, width);
-    this.world.camera.viewportHeight = Math.max(1, height);
-  }
-
+  resume(): void { if (!this.disposed) { this.pauseReason = null; this.world.paused = false; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(false); } }
+  resize(width: number, height: number): void { this.world.camera.viewportWidth = Math.max(1, width); this.world.camera.viewportHeight = Math.max(1, height); }
   getWorld(): RuntimeWorld { return this.world; }
   getPauseReason(): RuntimePauseReason { return this.pauseReason; }
+  destroy(): void { if (!this.disposed) { this.disposed = true; this.clearAccumulator(); this.loop.stop(); this.input.stop(); } }
 
-  destroy(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.accumulator = 0;
-    this.world.accumulator = 0;
-    this.loop.stop();
-    this.input.stop();
-  }
+  private clearAccumulator(): void { this.accumulator = 0; this.world.accumulator = 0; }
 
   private frame = (frame: RuntimeFrame) => {
     if (this.disposed || this.world.paused) return;
@@ -92,21 +54,20 @@ export class RuntimeController {
     while (this.accumulator >= RUNTIME_CONFIG.fixedStep && steps < RUNTIME_CONFIG.maxPhysicsStepsPerFrame) {
       this.world.input = this.input.snapshot();
       updateRuntimeWorld(this.world, RUNTIME_CONFIG.fixedStep);
-      this.input.commitStep();
+      if (steps === 0) this.input.consumeEdges();
       this.accumulator -= RUNTIME_CONFIG.fixedStep;
       steps += 1;
     }
-    if (steps === RUNTIME_CONFIG.maxPhysicsStepsPerFrame && this.accumulator >= RUNTIME_CONFIG.fixedStep) this.accumulator = 0;
+    if (steps === RUNTIME_CONFIG.maxPhysicsStepsPerFrame && this.accumulator >= RUNTIME_CONFIG.fixedStep) {
+      const remainder = this.accumulator % RUNTIME_CONFIG.fixedStep;
+      this.world.droppedPhysicsTime += this.accumulator - remainder;
+      this.accumulator = remainder;
+    }
     this.world.physicsSteps = steps;
     this.world.accumulator = this.accumulator;
     this.renderTimer += frame.delta;
-    if (this.renderTimer >= 1 / 30) {
-      this.renderTimer = 0;
-      this.emit(frame.fps);
-    }
+    if (this.renderTimer >= 1 / 30) { this.renderTimer = 0; this.emit(frame.fps); }
   };
 
-  private emit(fps: number): void {
-    if (!this.disposed) this.options.onRender({ world: this.world, fps });
-  }
+  private emit(fps: number): void { if (!this.disposed) this.options.onRender({ world: this.world, fps }); }
 }
