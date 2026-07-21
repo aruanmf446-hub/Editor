@@ -84,9 +84,11 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
   const interpolationRef = useRef(interpolationAlpha);
   const [status, setStatus] = useState<RuntimePlayerModelStatus>('loading');
 
-  playerRef.current = player;
-  cameraRef.current = { x: cameraX, y: cameraY };
-  interpolationRef.current = interpolationAlpha;
+  useEffect(() => {
+    playerRef.current = player;
+    cameraRef.current = { x: cameraX, y: cameraY };
+    interpolationRef.current = interpolationAlpha;
+  }, [player, cameraX, cameraY, interpolationAlpha]);
 
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
 
