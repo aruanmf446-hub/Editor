@@ -1,4 +1,4 @@
-import type { ElFuegoProject, ProjectScene } from '../types/project';
+import type { DialogueAdvanceMode, DialogueLine, ElFuegoProject, ProjectScene } from '../types/project';
 import type { RuntimeObjectMemory } from './RuntimeAdvancedObjects';
 import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
@@ -16,6 +16,17 @@ export type RuntimeCheckpointState = {
   y: number;
   respawnHealth: number;
 };
+export type RuntimeDialogueState = {
+  objectId: string;
+  lines: DialogueLine[];
+  lineIndex: number;
+  lineElapsed: number;
+  advanceMode: DialogueAdvanceMode;
+  blockPlayer: boolean;
+  once: boolean;
+};
+export type RuntimeCameraOverride = { x: number; y: number; remaining: number };
+export type RuntimeVariableValue = string | number | boolean;
 
 export type RuntimeWorld = {
   project: ElFuegoProject;
@@ -30,10 +41,17 @@ export type RuntimeWorld = {
   collectedObjectIds?: RuntimeObjectMemory;
   triggeredObjectIds?: RuntimeObjectMemory;
   activeTriggerContacts?: RuntimeObjectMemory;
+  completedDialogueIds?: RuntimeObjectMemory;
+  objectVisibilityOverrides?: Record<string, boolean>;
+  collisionEnabledOverrides?: Record<string, boolean>;
+  variables?: Record<string, RuntimeVariableValue>;
   collectiblesRemaining?: number;
-  activeDialogue?: string | null;
+  activeDialogue?: RuntimeDialogueState | null;
+  dialogueAdvanceRequested?: boolean;
   lastTriggerId?: string | null;
   playerNoCollision?: boolean;
+  pendingSceneTransitionId?: string | null;
+  cameraOverride?: RuntimeCameraOverride | null;
   camera: RuntimeCameraState;
   input: RuntimeInputSnapshot;
   paused: boolean;
