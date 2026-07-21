@@ -9,26 +9,24 @@ import {
   MeshStandardMaterial,
   OrthographicCamera,
   Scene,
-  Texture,
   Vector3,
   WebGLRenderer,
-  type Material,
   type Object3D,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getAsset } from '../../persistence/assetRepository';
 import { PlayerAnimationController } from '../PlayerAnimationController';
 import { RUNTIME_CONFIG } from '../RuntimeConfig';
-import type { RuntimePlayerState } from '../RuntimePlayer';
+import type { RuntimePlayerVisualState } from '../RuntimePlayer';
+import type { RuntimeWorld } from '../RuntimeWorld';
+import { disposeObject3DResources } from './disposeObject3D';
+import { calculatePlayerRendererPixelRatio } from './PlayerRenderQuality';
 
 export type RuntimePlayerModelStatus = 'loading' | 'ready' | 'missing' | 'error';
 
 type Props = {
   assetId?: string;
-  player: RuntimePlayerState;
-  cameraX: number;
-  cameraY: number;
-  interpolationAlpha: number;
+  world: RuntimeWorld;
   onStatusChange?: (status: RuntimePlayerModelStatus) => void;
 };
 
@@ -39,36 +37,19 @@ type VisualRuntime = {
   root: Group;
   model: Object3D;
   animation: PlayerAnimationController;
-  objectUrl: string;
+  visualState: RuntimePlayerVisualState;
   frameId: number;
   lastTime: number;
   width: number;
   height: number;
+  pixelRatio: number;
   resizeObserver: ResizeObserver | null;
+  removeResizeListeners: () => void;
 };
-
-function disposeTexture(value: unknown): void {
-  if (value instanceof Texture) value.dispose();
-}
-
-function disposeMaterial(material: Material): void {
-  for (const value of Object.values(material)) disposeTexture(value);
-  material.dispose();
-}
-
-function disposeModel(model: Object3D): void {
-  model.traverse((object) => {
-    if (!(object instanceof Mesh)) return;
-    object.geometry?.dispose();
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) disposeMaterial(material);
-  });
-}
 
 function normalizeModelToFeet(model: Object3D, playerHeight: number): void {
   const bounds = new Box3().setFromObject(model);
   const size = bounds.getSize(new Vector3());
-  const center = bounds.getCenter(new Vector3());
   const baseScale = size.y > 0 ? playerHeight / size.y : 1;
   model.scale.setScalar(baseScale * RUNTIME_CONFIG.playerModelScale);
 
@@ -76,44 +57,47 @@ function normalizeModelToFeet(model: Object3D, playerHeight: number): void {
   const scaledCenter = scaledBounds.getCenter(new Vector3());
   model.position.x -= scaledCenter.x;
   model.position.y -= scaledBounds.min.y;
-  model.position.z -= center.z * baseScale;
+  model.position.z -= scaledCenter.z;
+}
+
+function disposeRenderer(renderer: WebGLRenderer): void {
+  renderer.setAnimationLoop(null);
+  renderer.renderLists.dispose();
+  renderer.dispose();
+  renderer.forceContextLoss();
+  renderer.domElement.width = 1;
+  renderer.domElement.height = 1;
 }
 
 function disposeRuntime(runtime: VisualRuntime): void {
   cancelAnimationFrame(runtime.frameId);
   runtime.resizeObserver?.disconnect();
+  runtime.removeResizeListeners();
   runtime.animation.dispose();
   runtime.scene.remove(runtime.root);
-  disposeModel(runtime.model);
-  runtime.renderer.dispose();
-  runtime.renderer.forceContextLoss();
-  URL.revokeObjectURL(runtime.objectUrl);
+  disposeObject3DResources(runtime.model);
+  disposeRenderer(runtime.renderer);
 }
 
-export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpolationAlpha, onStatusChange }: Props) {
+function animationOptions() {
+  return {
+    logicalAttackDuration: RUNTIME_CONFIG.attackDuration,
+    logicalDeathDuration: RUNTIME_CONFIG.deathDuration,
+  };
+}
+
+export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<VisualRuntime | null>(null);
-  const playerRef = useRef(player);
-  const cameraRef = useRef({ x: cameraX, y: cameraY });
-  const interpolationRef = useRef(interpolationAlpha);
+  const worldRef = useRef(world);
   const loadGenerationRef = useRef(0);
   const [status, setStatus] = useState<RuntimePlayerModelStatus>('loading');
 
   useEffect(() => {
-    playerRef.current = player;
-    cameraRef.current = { x: cameraX, y: cameraY };
-    interpolationRef.current = interpolationAlpha;
-  }, [player, cameraX, cameraY, interpolationAlpha]);
+    worldRef.current = world;
+  }, [world]);
 
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
-
-  useEffect(() => {
-    const runtime = runtimeRef.current;
-    if (!runtime) return;
-    runtime.animation.transitionTo(player.visualState, {
-      logicalAttackDuration: RUNTIME_CONFIG.attackDuration,
-    });
-  }, [player.visualState]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -124,32 +108,40 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
     }
 
     let cancelled = false;
-    let pendingObjectUrl: string | null = null;
     setStatus('loading');
 
     const load = async () => {
-      const asset = await getAsset(assetId);
-      if (cancelled || generation !== loadGenerationRef.current) return;
-      if (!asset || asset.category !== 'model') {
-        setStatus('missing');
-        return;
-      }
+      let parsedModel: Object3D | null = null;
+      let provisionalRenderer: WebGLRenderer | null = null;
 
-      const objectUrl = URL.createObjectURL(asset.blob);
-      pendingObjectUrl = objectUrl;
-      const loader = new GLTFLoader();
-
-      loader.load(objectUrl, (gltf) => {
-        if (cancelled || generation !== loadGenerationRef.current) {
-          disposeModel(gltf.scene);
-          URL.revokeObjectURL(objectUrl);
-          pendingObjectUrl = null;
+      try {
+        const asset = await getAsset(assetId);
+        if (cancelled || generation !== loadGenerationRef.current) return;
+        if (!asset || asset.category !== 'model') {
+          setStatus('missing');
           return;
         }
 
-        const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true });
+        const data = await asset.blob.arrayBuffer();
+        if (cancelled || generation !== loadGenerationRef.current) return;
+
+        const loader = new GLTFLoader();
+        const gltf = await loader.parseAsync(data, '');
+        parsedModel = gltf.scene;
+        if (cancelled || generation !== loadGenerationRef.current) {
+          disposeObject3DResources(parsedModel);
+          parsedModel = null;
+          return;
+        }
+
+        const renderer = new WebGLRenderer({
+          canvas,
+          alpha: true,
+          antialias: true,
+          powerPreference: 'high-performance',
+        });
+        provisionalRenderer = renderer;
         renderer.setClearColor(new Color(0x000000), 0);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
         const scene = new Scene();
         const camera = new OrthographicCamera(0, 1, 0, -1, 0.1, 2000);
@@ -157,8 +149,8 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
         camera.lookAt(0, 0, 0);
 
         const root = new Group();
-        const model = gltf.scene;
-        normalizeModelToFeet(model, playerRef.current.standingHeight);
+        const model = parsedModel;
+        normalizeModelToFeet(model, worldRef.current.player.standingHeight);
         root.add(model);
         scene.add(root);
         scene.add(new AmbientLight(0xffffff, 1.6));
@@ -170,13 +162,15 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
           if (!(object instanceof Mesh)) return;
           object.castShadow = false;
           object.receiveShadow = false;
-          if (object.material instanceof MeshStandardMaterial) object.material.needsUpdate = true;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) {
+            if (material instanceof MeshStandardMaterial) material.needsUpdate = true;
+          }
         });
 
+        const initialState = worldRef.current.player.visualState;
         const animation = new PlayerAnimationController(model, gltf.animations);
-        animation.transitionTo(playerRef.current.visualState, {
-          logicalAttackDuration: RUNTIME_CONFIG.attackDuration,
-        });
+        animation.transitionTo(initialState, animationOptions());
 
         const runtime: VisualRuntime = {
           renderer,
@@ -185,34 +179,78 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
           root,
           model,
           animation,
-          objectUrl,
+          visualState: initialState,
           frameId: 0,
           lastTime: performance.now(),
           width: 1,
           height: 1,
+          pixelRatio: 1,
           resizeObserver: null,
+          removeResizeListeners: () => undefined,
         };
-        pendingObjectUrl = null;
+        parsedModel = null;
+        provisionalRenderer = null;
         runtimeRef.current = runtime;
 
-        const resize = () => {
+        let resizeFrameId = 0;
+        const resizeNow = () => {
+          resizeFrameId = 0;
+          if (cancelled || runtimeRef.current !== runtime) return;
           const rect = canvas.getBoundingClientRect();
           runtime.width = Math.max(1, Math.round(rect.width));
           runtime.height = Math.max(1, Math.round(rect.height));
+          const nextPixelRatio = calculatePlayerRendererPixelRatio(
+            runtime.width,
+            runtime.height,
+            window.devicePixelRatio || 1,
+          );
+          if (Math.abs(nextPixelRatio - runtime.pixelRatio) > 0.01) {
+            runtime.pixelRatio = nextPixelRatio;
+            renderer.setPixelRatio(nextPixelRatio);
+          }
           renderer.setSize(runtime.width, runtime.height, false);
         };
-        resize();
-        runtime.resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+        const scheduleResize = () => {
+          if (resizeFrameId) return;
+          resizeFrameId = requestAnimationFrame(resizeNow);
+        };
+
+        resizeNow();
+        runtime.resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleResize);
         runtime.resizeObserver?.observe(canvas);
+        window.addEventListener('resize', scheduleResize, { passive: true });
+        document.addEventListener('fullscreenchange', scheduleResize);
+        window.visualViewport?.addEventListener('resize', scheduleResize, { passive: true });
+        runtime.removeResizeListeners = () => {
+          if (resizeFrameId) cancelAnimationFrame(resizeFrameId);
+          window.removeEventListener('resize', scheduleResize);
+          document.removeEventListener('fullscreenchange', scheduleResize);
+          window.visualViewport?.removeEventListener('resize', scheduleResize);
+        };
 
         const render = (now: number) => {
           if (cancelled || generation !== loadGenerationRef.current || runtimeRef.current !== runtime) return;
           const visualDelta = Math.min(Math.max(0, (now - runtime.lastTime) / 1000), 0.1);
           runtime.lastTime = now;
+
+          const currentWorld = worldRef.current;
+          const currentPlayer = currentWorld.player;
+          const nextState = currentPlayer.visualState;
+          if (nextState !== runtime.visualState) {
+            const respawned = runtime.visualState === 'dead'
+              && currentPlayer.health > 0
+              && currentPlayer.deathRemaining <= 0;
+            const accepted = respawned
+              ? animation.resetAfterRespawn(nextState, animationOptions())
+              : animation.transitionTo(nextState, animationOptions());
+            if (accepted) runtime.visualState = nextState;
+          }
+
           animation.update(visualDelta);
 
-          const currentPlayer = playerRef.current;
-          const alpha = Math.min(1, Math.max(0, interpolationRef.current));
+          const alpha = RUNTIME_CONFIG.fixedStep > 0
+            ? Math.min(1, Math.max(0, currentWorld.accumulator / RUNTIME_CONFIG.fixedStep))
+            : 1;
           const x = currentPlayer.renderPreviousX + (currentPlayer.x - currentPlayer.renderPreviousX) * alpha;
           const y = currentPlayer.renderPreviousY + (currentPlayer.y - currentPlayer.renderPreviousY) * alpha;
           runtime.root.position.set(
@@ -224,7 +262,7 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
             ? RUNTIME_CONFIG.playerModelFacingRightRotation
             : RUNTIME_CONFIG.playerModelFacingLeftRotation;
 
-          const viewport = cameraRef.current;
+          const viewport = currentWorld.camera;
           camera.left = viewport.x;
           camera.right = viewport.x + runtime.width;
           camera.top = -viewport.y;
@@ -236,27 +274,21 @@ export function RuntimePlayerModel({ assetId, player, cameraX, cameraY, interpol
 
         setStatus('ready');
         runtime.frameId = requestAnimationFrame(render);
-      }, undefined, (error) => {
-        URL.revokeObjectURL(objectUrl);
-        pendingObjectUrl = null;
+      } catch (error) {
+        if (parsedModel) disposeObject3DResources(parsedModel);
+        if (provisionalRenderer) disposeRenderer(provisionalRenderer);
         if (!cancelled && generation === loadGenerationRef.current) {
           console.error('[player-model] falha ao carregar GLB', error);
           setStatus('error');
         }
-      });
+      }
     };
 
-    void load().catch((error) => {
-      if (!cancelled && generation === loadGenerationRef.current) {
-        console.error('[player-model] falha ao recuperar ativo', error);
-        setStatus('error');
-      }
-    });
+    void load();
 
     return () => {
       cancelled = true;
       loadGenerationRef.current += 1;
-      if (pendingObjectUrl) URL.revokeObjectURL(pendingObjectUrl);
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       if (runtime) disposeRuntime(runtime);

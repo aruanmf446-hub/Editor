@@ -34,4 +34,7 @@ export const RUNTIME_CONFIG = {
   playerModelOffsetZ: 0,
   playerModelFacingRightRotation: Math.PI / 2,
   playerModelFacingLeftRotation: -Math.PI / 2,
+  playerRendererMaxPixelRatio: 1.5,
+  playerRendererMinPixelRatio: 0.75,
+  playerRendererPixelBudget: 2_500_000,
 } as const;

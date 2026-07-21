@@ -10,6 +10,11 @@ import type { RuntimePlayerVisualState } from './RuntimePlayer';
 
 export type PlayerAnimationState = RuntimePlayerVisualState;
 export type PlayerAnimationMap = Partial<Record<PlayerAnimationState, AnimationClip>>;
+export type PlayerAnimationTransitionOptions = {
+  fade?: number;
+  logicalAttackDuration?: number;
+  logicalDeathDuration?: number;
+};
 
 type ResolvedAnimationMap = {
   clips: PlayerAnimationMap;
@@ -29,6 +34,9 @@ const aliases: Record<PlayerAnimationState, string[]> = {
   hurt: ['hurt', 'damage', 'hitreact', 'hit react', 'dano'],
 };
 
+const exactOnlyAliases = new Set(['hit']);
+const locomotionStates = new Set<PlayerAnimationState>(['walk', 'run']);
+
 export function normalizeAnimationClipName(name: string): string {
   return name
     .normalize('NFD')
@@ -38,15 +46,35 @@ export function normalizeAnimationClipName(name: string): string {
     .trim();
 }
 
+function aliasMatches(normalizedName: string, alias: string): boolean {
+  if (normalizedName === alias) return true;
+  if (exactOnlyAliases.has(alias)) return false;
+  const words = normalizedName.split(' ');
+  if (!alias.includes(' ')) return words.includes(alias);
+  return ` ${normalizedName} `.includes(` ${alias} `);
+}
+
+function findClipForState(
+  normalized: Array<{ clip: AnimationClip; name: string }>,
+  state: PlayerAnimationState,
+): AnimationClip | undefined {
+  const stateAliases = aliases[state];
+  const exact = normalized.find(({ name }) => stateAliases.includes(name));
+  if (exact) return exact.clip;
+
+  const orderedAliases = [...stateAliases].sort((a, b) => b.length - a.length);
+  return normalized.find(({ name }) => orderedAliases.some((alias) => aliasMatches(name, alias)))?.clip;
+}
+
 function resolvePlayerAnimationClips(clips: readonly AnimationClip[]): ResolvedAnimationMap {
   const normalized = clips.map((clip) => ({ clip, name: normalizeAnimationClipName(clip.name) }));
   const result: PlayerAnimationMap = {};
   const sourceStates: Partial<Record<PlayerAnimationState, PlayerAnimationState>> = {};
 
   for (const state of Object.keys(aliases) as PlayerAnimationState[]) {
-    const match = normalized.find(({ name }) => aliases[state].some((alias) => name === alias || name.includes(alias)));
+    const match = findClipForState(normalized, state);
     if (match) {
-      result[state] = match.clip;
+      result[state] = match;
       sourceStates[state] = state;
     }
   }
@@ -70,10 +98,19 @@ export function mapPlayerAnimationClips(clips: readonly AnimationClip[]): Player
   return resolvePlayerAnimationClips(clips).clips;
 }
 
+function defaultFadeFor(state: PlayerAnimationState): number {
+  if (state === 'dead') return 0.06;
+  if (state === 'attack' || state === 'hurt') return 0.08;
+  if (state === 'jump' || state === 'fall') return 0.1;
+  if (state === 'idle' || state === 'walk' || state === 'run') return 0.16;
+  return 0.12;
+}
+
 export class PlayerAnimationController {
   readonly mixer: AnimationMixer;
   readonly clips: PlayerAnimationMap;
   readonly availableClipNames: string[];
+  private readonly root: Object3D;
   private readonly actions = new Map<AnimationClip, AnimationAction>();
   private readonly sourceStates: Partial<Record<PlayerAnimationState, PlayerAnimationState>>;
   private readonly warnedFallbacks = new Set<PlayerAnimationState>();
@@ -81,18 +118,26 @@ export class PlayerAnimationController {
   private currentState: PlayerAnimationState | null = null;
   private currentAction: AnimationAction | null = null;
 
-  constructor(root: Object3D, clips: readonly AnimationClip[]) {
+  constructor(root: Object3D, clips: readonly AnimationClip[], options: { debug?: boolean } = {}) {
+    this.root = root;
     this.mixer = new AnimationMixer(root);
     const resolved = resolvePlayerAnimationClips(clips);
     this.clips = resolved.clips;
     this.sourceStates = resolved.sourceStates;
     this.availableClipNames = clips.map((clip) => clip.name);
     for (const clip of clips) this.actions.set(clip, this.mixer.clipAction(clip));
-    console.info('[player-animation] clips disponíveis', clips.map((clip) => ({ original: clip.name, normalized: normalizeAnimationClipName(clip.name) })));
+    if (options.debug) {
+      console.info('[player-animation] clips disponíveis', clips.map((clip) => ({
+        original: clip.name,
+        normalized: normalizeAnimationClipName(clip.name),
+      })));
+    }
   }
 
-  transitionTo(state: PlayerAnimationState, options: { fade?: number; logicalAttackDuration?: number } = {}): void {
-    if (state === this.currentState) return;
+  transitionTo(state: PlayerAnimationState, options: PlayerAnimationTransitionOptions = {}): boolean {
+    if (state === this.currentState) return true;
+    if (this.currentState === 'dead') return false;
+
     const clip = this.clips[state];
     if (!clip) {
       if (!this.warnedMissing.has(state)) {
@@ -100,7 +145,7 @@ export class PlayerAnimationController {
         this.warnedMissing.add(state);
       }
       this.currentState = state;
-      return;
+      return true;
     }
 
     const sourceState = this.sourceStates[state];
@@ -109,46 +154,71 @@ export class PlayerAnimationController {
       this.warnedFallbacks.add(state);
     }
 
-    const fade = options.fade ?? 0.12;
     const next = this.actions.get(clip);
-    if (!next) return;
+    if (!next) return false;
 
-    if (this.currentAction && this.currentAction !== next) {
-      if (this.currentState === 'dead') {
-        this.currentAction.stop();
-        this.currentAction.reset();
-      } else {
-        this.currentAction.fadeOut(fade);
-      }
+    const previousState = this.currentState;
+    const previous = this.currentAction;
+    const fade = Math.max(0, options.fade ?? defaultFadeFor(state));
+    const sameAction = previous === next;
+
+    this.configureAction(next, clip, state, sourceState, options);
+
+    if (sameAction) {
+      next.enabled = true;
+      next.paused = false;
+      next.setEffectiveWeight(1);
+      if (!next.isRunning()) next.play();
+      this.currentState = state;
+      this.currentAction = next;
+      return true;
     }
 
+    let locomotionPhase: number | null = null;
+    if (previous && previousState && locomotionStates.has(previousState) && locomotionStates.has(state)) {
+      const previousDuration = previous.getClip().duration;
+      if (previousDuration > 0) locomotionPhase = (previous.time % previousDuration) / previousDuration;
+    }
+
+    next.reset();
+    this.configureAction(next, clip, state, sourceState, options);
+    if (locomotionPhase != null && clip.duration > 0) next.time = locomotionPhase * clip.duration;
     next.enabled = true;
     next.paused = false;
-    next.reset();
-    next.setEffectiveTimeScale(1);
     next.setEffectiveWeight(1);
+    next.play();
 
-    const attackScale = state === 'attack' && options.logicalAttackDuration && options.logicalAttackDuration > 0
-      ? clip.duration / options.logicalAttackDuration
-      : 1;
-    const idleFallbackScale = state === 'idle' && sourceState !== 'idle' ? 0 : 1;
-    next.setEffectiveTimeScale(attackScale * idleFallbackScale);
-
-    if (state === 'dead' || state === 'attack') {
-      next.setLoop(LoopOnce, 1);
-      next.clampWhenFinished = true;
-    } else {
-      next.setLoop(LoopRepeat, Infinity);
-      next.clampWhenFinished = false;
+    if (previous) {
+      if (fade > 0) previous.crossFadeTo(next, fade, false);
+      else previous.stop();
+    } else if (fade > 0) {
+      next.fadeIn(fade);
     }
 
-    next.fadeIn(fade).play();
     this.currentState = state;
     this.currentAction = next;
+    return true;
+  }
+
+  resetAfterRespawn(
+    state: PlayerAnimationState,
+    options: PlayerAnimationTransitionOptions = {},
+  ): boolean {
+    if (this.currentAction) {
+      this.currentAction.stop();
+      this.currentAction.reset();
+    }
+    this.currentState = null;
+    this.currentAction = null;
+    return this.transitionTo(state, { ...options, fade: options.fade ?? 0.08 });
   }
 
   update(delta: number): void {
     if (Number.isFinite(delta) && delta > 0) this.mixer.update(Math.min(delta, 0.1));
+  }
+
+  getCurrentState(): PlayerAnimationState | null {
+    return this.currentState;
   }
 
   getDeathClipDuration(): number | null {
@@ -157,11 +227,45 @@ export class PlayerAnimationController {
 
   dispose(): void {
     this.mixer.stopAllAction();
-    this.mixer.uncacheRoot(this.mixer.getRoot());
+    for (const [clip, action] of this.actions) {
+      action.stop();
+      this.mixer.uncacheAction(clip, this.root);
+      this.mixer.uncacheClip(clip);
+    }
+    this.mixer.uncacheRoot(this.root);
     this.actions.clear();
     this.warnedFallbacks.clear();
     this.warnedMissing.clear();
     this.currentAction = null;
     this.currentState = null;
+  }
+
+  private configureAction(
+    action: AnimationAction,
+    clip: AnimationClip,
+    state: PlayerAnimationState,
+    sourceState: PlayerAnimationState | undefined,
+    options: PlayerAnimationTransitionOptions,
+  ): void {
+    action.enabled = true;
+    action.paused = false;
+    action.setEffectiveWeight(1);
+
+    const logicalDuration = state === 'attack'
+      ? options.logicalAttackDuration
+      : state === 'dead'
+        ? options.logicalDeathDuration
+        : undefined;
+    const durationScale = logicalDuration && logicalDuration > 0 ? clip.duration / logicalDuration : 1;
+    const idleFallbackScale = state === 'idle' && sourceState !== 'idle' ? 0 : 1;
+    action.setEffectiveTimeScale(durationScale * idleFallbackScale);
+
+    if (state === 'dead' || state === 'attack') {
+      action.setLoop(LoopOnce, 1);
+      action.clampWhenFinished = true;
+    } else {
+      action.setLoop(LoopRepeat, Infinity);
+      action.clampWhenFinished = false;
+    }
   }
 }
