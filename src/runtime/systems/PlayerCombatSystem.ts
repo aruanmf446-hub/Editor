@@ -5,11 +5,7 @@ import { respawnPlayerSafely } from './CollisionSystem';
 
 export type PlayerDamageResult = 'ignored' | 'blocked' | 'damaged' | 'killed';
 export type PlayerDamageType = 'physical' | 'environmental' | 'projectile' | 'unknown';
-export type PlayerDamageInput = {
-  amount: number;
-  sourceX?: number | null;
-  damageType?: PlayerDamageType;
-};
+export type PlayerDamageInput = { amount: number; sourceX?: number | null; damageType?: PlayerDamageType };
 
 function createAttackHitbox(player: RuntimePlayerState): RuntimeBounds {
   const height = player.standingHeight * RUNTIME_CONFIG.attackHeightFactor;
@@ -28,11 +24,7 @@ function getKnockbackDirection(player: RuntimePlayerState, sourceX?: number | nu
   return playerCenterX >= sourceX ? 1 : -1;
 }
 
-/**
- * Defense currently blocks every finite positive damage event while the player is grounded.
- * sourceX and damageType are already part of the API so enemy-facing rules can be added later
- * without changing the combat system contract.
- */
+/** Defense currently blocks every finite positive damage event while grounded. */
 export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerDamageInput, legacySourceX?: number): PlayerDamageResult {
   const player = world.player;
   const damage = typeof input === 'number' ? { amount: input, sourceX: legacySourceX, damageType: 'unknown' as const } : input;
@@ -70,7 +62,6 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   const player = world.player;
   player.attackCooldownRemaining = Math.max(0, player.attackCooldownRemaining - delta);
   player.invulnerabilityRemaining = Math.max(0, player.invulnerabilityRemaining - delta);
-
   if (player.mode !== 'attack' && player.attackHitbox) player.attackHitbox = null;
 
   if (player.mode === 'dead') {
@@ -97,6 +88,7 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
     if (nextElapsed >= RUNTIME_CONFIG.attackDuration) {
       player.mode = player.grounded ? 'idle' : 'fall';
       player.attackElapsed = 0;
+      player.attackHitbox = null;
       player.attackCooldownRemaining = RUNTIME_CONFIG.attackCooldown;
     }
     return;
