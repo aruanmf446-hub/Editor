@@ -10,6 +10,7 @@ export type RuntimeInputState = {
 export type RuntimeInputSnapshot = RuntimeInputState & {
   jumpPressed: boolean;
   jumpReleased: boolean;
+  attackPressed?: boolean;
 };
 
 const emptyState = (): RuntimeInputState => ({ left: false, right: false, jump: false, crouch: false, attack: false, defend: false });
@@ -18,6 +19,7 @@ export class RuntimeInput {
   readonly state = emptyState();
   private pendingJumpPressed = false;
   private pendingJumpReleased = false;
+  private pendingAttackPressed = false;
   private started = false;
 
   start() {
@@ -37,21 +39,19 @@ export class RuntimeInput {
   }
 
   snapshot(): RuntimeInputSnapshot {
-    return {
-      ...this.state,
-      jumpPressed: this.pendingJumpPressed,
-      jumpReleased: this.pendingJumpReleased,
-    };
+    return { ...this.state, jumpPressed: this.pendingJumpPressed, jumpReleased: this.pendingJumpReleased, attackPressed: this.pendingAttackPressed };
   }
 
   consumeEdges(): void {
     this.pendingJumpPressed = false;
     this.pendingJumpReleased = false;
+    this.pendingAttackPressed = false;
   }
 
   resetEdges(): void {
     this.pendingJumpPressed = false;
     this.pendingJumpReleased = false;
+    this.pendingAttackPressed = false;
   }
 
   private setKey(code: string, value: boolean) {
@@ -63,7 +63,10 @@ export class RuntimeInput {
       this.state.jump = value;
     }
     if (code === 'KeyS' || code === 'ArrowDown') this.state.crouch = value;
-    if (code === 'KeyJ') this.state.attack = value;
+    if (code === 'KeyJ') {
+      if (value && !this.state.attack) this.pendingAttackPressed = true;
+      this.state.attack = value;
+    }
     if (code === 'KeyK') this.state.defend = value;
   }
 
