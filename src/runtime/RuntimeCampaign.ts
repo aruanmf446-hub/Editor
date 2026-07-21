@@ -34,13 +34,7 @@ export function recordCampaignCheckpoint(world: RuntimeWorld): void {
   const levelId = world.currentLevelId;
   const checkpoint = world.activeCheckpoint;
   if (!progress || !levelId || !checkpoint) return;
-  progress.checkpoints[levelId] = {
-    sceneId: checkpoint.sceneId,
-    objectId: checkpoint.objectId,
-    x: checkpoint.x,
-    y: checkpoint.y,
-    respawnHealth: checkpoint.respawnHealth,
-  };
+  progress.checkpoints[levelId] = { sceneId: checkpoint.sceneId, objectId: checkpoint.objectId, x: checkpoint.x, y: checkpoint.y, respawnHealth: checkpoint.respawnHealth };
   progress.lastLevelId = levelId;
   progress.lives = world.player.health;
   progress.attack = world.player.attack;
@@ -48,17 +42,17 @@ export function recordCampaignCheckpoint(world: RuntimeWorld): void {
   changed(world);
 }
 
-export function recordCampaignCollectible(world: RuntimeWorld, objectId: string, collectibleId = objectId, value = 1): void {
+export function recordCampaignCollectible(world: RuntimeWorld, objectId: string, collectibleId = objectId, value = 1, persistent = true): void {
   const progress = world.campaignProgress;
   if (!progress) return;
-  const firstCollection = !progress.collectedObjectIds.includes(objectId);
-  if (firstCollection) progress.collectedObjectIds.push(objectId);
+  const firstPersistentCollection = !progress.collectedObjectIds.includes(objectId);
+  if (persistent && firstPersistentCollection) progress.collectedObjectIds.push(objectId);
   progress.collectibleTotals ??= {};
-  if (firstCollection) progress.collectibleTotals[collectibleId] = (progress.collectibleTotals[collectibleId] ?? 0) + Math.max(0, value);
+  progress.collectibleTotals[collectibleId] = (progress.collectibleTotals[collectibleId] ?? 0) + Math.max(0, value);
   progress.lives = world.player.health;
   progress.attack = world.player.attack;
   progress.defense = world.player.defense;
-  if (firstCollection) changed(world);
+  changed(world);
 }
 
 export function recordCampaignStats(world: RuntimeWorld): void {
