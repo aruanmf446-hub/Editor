@@ -1,7 +1,6 @@
 import { RUNTIME_CONFIG } from '../RuntimeConfig';
 import type { RuntimePlayerState } from '../RuntimePlayer';
 import type { RuntimeBounds, RuntimeWorld } from '../RuntimeWorld';
-import { respawnPlayerSafely } from './CollisionSystem';
 
 export type PlayerDamageResult = 'ignored' | 'blocked' | 'damaged' | 'killed';
 export type PlayerDamageType = 'physical' | 'environmental' | 'projectile' | 'unknown';
@@ -39,6 +38,9 @@ export function receivePlayerDamage(world: RuntimeWorld, input: number | PlayerD
 
   if (player.health === 0) {
     world.campaignDeaths = (world.campaignDeaths ?? 0) + 1;
+    world.gameOverReason = 'no-lives';
+    world.completed = true;
+    world.paused = true;
     player.mode = 'dead';
     player.visualState = 'dead';
     player.deathRemaining = RUNTIME_CONFIG.deathDuration;
@@ -67,10 +69,6 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
 
   if (player.mode === 'dead') {
     player.deathRemaining = Math.max(0, player.deathRemaining - delta);
-    if (player.deathRemaining === 0 && respawnPlayerSafely(world)) {
-      player.health = Math.min(player.maxHealth, Math.max(1, player.respawnHealth));
-      player.invulnerabilityRemaining = RUNTIME_CONFIG.respawnInvulnerability;
-    }
     return;
   }
 
