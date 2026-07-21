@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import type { AssetRecord } from '../persistence/database';
@@ -8,17 +8,22 @@ const icons = { background: '▣', model: '◈', texture: '▧', audio: '♫', o
 
 export function AssetLibrary() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const { assets, loading, load, importFiles, remove, rename } = useAssetStore();
   const projectId = useEditorStore((state) => state.project.project.id);
 
   useEffect(() => { void load(projectId); }, [load, projectId]);
-  useEffect(() => {
+
+  const previewUrls = useMemo(() => {
     const urls: Record<string, string> = {};
-    for (const asset of assets) if (asset.mimeType.startsWith('image/')) urls[asset.id] = URL.createObjectURL(asset.blob);
-    setPreviewUrls(urls);
-    return () => Object.values(urls).forEach(URL.revokeObjectURL);
+    for (const asset of assets) {
+      if (asset.mimeType.startsWith('image/')) urls[asset.id] = URL.createObjectURL(asset.blob);
+    }
+    return urls;
   }, [assets]);
+
+  useEffect(() => () => {
+    Object.values(previewUrls).forEach((url) => URL.revokeObjectURL(url));
+  }, [previewUrls]);
 
   const instantiate = (asset: AssetRecord) => {
     const editor = useEditorStore.getState();
