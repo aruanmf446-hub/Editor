@@ -6,6 +6,7 @@ import {
   LoopRepeat,
   type Object3D,
 } from 'three';
+import type { PlayerAnimationAssignments } from '../types/project';
 import type { RuntimePlayerVisualState } from './RuntimePlayer';
 
 export type PlayerAnimationState = RuntimePlayerVisualState;
@@ -67,13 +68,19 @@ function findClipForState(
   return normalized.find(({ name }) => orderedAliases.some((alias) => aliasMatches(name, alias)))?.clip;
 }
 
-function resolvePlayerAnimationClips(clips: readonly AnimationClip[]): ResolvedAnimationMap {
+function resolvePlayerAnimationClips(
+  clips: readonly AnimationClip[],
+  assignments: PlayerAnimationAssignments = {},
+): ResolvedAnimationMap {
   const normalized = clips.map((clip) => ({ clip, name: normalizeAnimationClipName(clip.name) }));
+  const clipsByExactName = new Map(clips.map((clip) => [clip.name, clip]));
   const result: PlayerAnimationMap = {};
   const sourceStates: Partial<Record<PlayerAnimationState, PlayerAnimationState>> = {};
 
   for (const state of Object.keys(aliases) as PlayerAnimationState[]) {
-    const match = findClipForState(normalized, state);
+    const assignedName = assignments[state];
+    const assignedClip = assignedName ? clipsByExactName.get(assignedName) : undefined;
+    const match = assignedClip ?? findClipForState(normalized, state);
     if (match) {
       result[state] = match;
       sourceStates[state] = state;
@@ -95,8 +102,11 @@ function resolvePlayerAnimationClips(clips: readonly AnimationClip[]): ResolvedA
   return { clips: result, sourceStates };
 }
 
-export function mapPlayerAnimationClips(clips: readonly AnimationClip[]): PlayerAnimationMap {
-  return resolvePlayerAnimationClips(clips).clips;
+export function mapPlayerAnimationClips(
+  clips: readonly AnimationClip[],
+  assignments: PlayerAnimationAssignments = {},
+): PlayerAnimationMap {
+  return resolvePlayerAnimationClips(clips, assignments).clips;
 }
 
 function defaultFadeFor(state: PlayerAnimationState): number {
@@ -119,10 +129,14 @@ export class PlayerAnimationController {
   private currentState: PlayerAnimationState | null = null;
   private currentAction: AnimationAction | null = null;
 
-  constructor(root: Object3D, clips: readonly AnimationClip[], options: { debug?: boolean } = {}) {
+  constructor(
+    root: Object3D,
+    clips: readonly AnimationClip[],
+    options: { debug?: boolean; assignments?: PlayerAnimationAssignments } = {},
+  ) {
     this.root = root;
     this.mixer = new AnimationMixer(root);
-    const resolved = resolvePlayerAnimationClips(clips);
+    const resolved = resolvePlayerAnimationClips(clips, options.assignments);
     this.clips = resolved.clips;
     this.sourceStates = resolved.sourceStates;
     this.availableClipNames = clips.map((clip) => clip.name);
@@ -216,11 +230,6 @@ export class PlayerAnimationController {
 
   update(delta: number): void {
     if (!Number.isFinite(delta) || delta <= 0) return;
-
-    // Mantém o tempo real da reprodução durante quedas curtas de FPS.
-    // O limite maior evita que a animação "congele" por descartar metade do
-    // tempo de um frame lento, mas ainda impede saltos enormes após a aba
-    // permanecer suspensa por muito tempo.
     this.mixer.update(Math.min(delta, MAX_ANIMATION_DELTA));
   }
 
