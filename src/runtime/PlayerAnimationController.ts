@@ -113,9 +113,19 @@ export class PlayerAnimationController {
     const next = this.actions.get(clip);
     if (!next) return;
 
-    if (this.currentAction !== next) this.currentAction?.fadeOut(fade);
+    if (this.currentAction && this.currentAction !== next) {
+      if (this.currentState === 'dead') {
+        this.currentAction.stop();
+        this.currentAction.reset();
+      } else {
+        this.currentAction.fadeOut(fade);
+      }
+    }
+
     next.enabled = true;
+    next.paused = false;
     next.reset();
+    next.setEffectiveTimeScale(1);
     next.setEffectiveWeight(1);
 
     const attackScale = state === 'attack' && options.logicalAttackDuration && options.logicalAttackDuration > 0
