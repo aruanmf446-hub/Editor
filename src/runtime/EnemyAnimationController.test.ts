@@ -44,9 +44,9 @@ describe('EnemyAnimationController', () => {
     const run = clip('run', 1);
     const controller = new EnemyAnimationController(new Object3D(), [walk, run]);
     controller.transitionTo('walk', 0);
-    controller.update(0.5);
+    controller.update(0.2);
     controller.transitionTo('run', 0);
-    expect(controller.mixer.clipAction(run).time).toBeCloseTo(0.25);
+    expect(controller.mixer.clipAction(run).time).toBeCloseTo(0.1);
     controller.dispose();
   });
 });
