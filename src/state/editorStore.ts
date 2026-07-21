@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createEmptyProject, createEmptyScene } from '../project/projectFactory';
-import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType } from '../types/project';
+import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType, Transform2D } from '../types/project';
 
 type SaveStatus = 'Salvo' | 'Alterações não salvas' | 'Salvando...' | 'Erro ao salvar' | 'Backup recuperado';
 type EditableObjectPatch = Partial<Pick<SceneObjectBase, 'name' | 'visible' | 'locked' | 'transform'>>;
@@ -26,6 +26,9 @@ type EditorState = {
   moveScene: (sceneId: string, direction: -1 | 1) => void;
   addObject: (type: SceneObjectType) => void;
   updateObject: (objectId: string, patch: EditableObjectPatch) => void;
+  previewObjectTransform: (objectId: string, transform: Transform2D) => void;
+  commitTransformPreview: (beforeProject: ElFuegoProject) => void;
+  cancelTransformPreview: (beforeProject: ElFuegoProject) => void;
   duplicateObject: (objectId: string) => void;
   deleteObject: (objectId: string) => void;
   toggleObjectVisibility: (objectId: string) => void;
@@ -34,6 +37,7 @@ type EditorState = {
   redo: () => void;
   setZoom: (zoom: number) => void;
   toggleGrid: () => void;
+  toggleSnap: () => void;
   newProject: () => void;
 };
 
@@ -97,6 +101,14 @@ export const useEditorStore = create<EditorState>((set) => {
       return { project, past: [...state.past.slice(-49), snapshot(state.project)], future: [], selectedObjectId: object.id, saveStatus: 'Alterações não salvas' };
     }),
     updateObject: (objectId, patch) => commit((project) => ({ ...project, scenes: project.scenes.map((scene) => ({ ...scene, objects: scene.objects.map((object) => object.id === objectId ? { ...object, ...patch } : object) })) })),
+    previewObjectTransform: (objectId, transform) => set((state) => ({
+      project: { ...state.project, scenes: state.project.scenes.map((scene) => ({ ...scene, objects: scene.objects.map((object) => object.id === objectId ? { ...object, transform } : object) })) },
+      saveStatus: 'Alterações não salvas',
+    })),
+    commitTransformPreview: (beforeProject) => set((state) => ({
+      project: touch(state.project), past: [...state.past.slice(-49), snapshot(beforeProject)], future: [], saveStatus: 'Alterações não salvas',
+    })),
+    cancelTransformPreview: (beforeProject) => set({ project: beforeProject }),
     duplicateObject: (objectId) => set((state) => {
       const scene = state.project.scenes.find((item) => item.objects.some((object) => object.id === objectId)); const source = scene?.objects.find((object) => object.id === objectId); if (!scene || !source) return state;
       const duplicate = { ...structuredClone(source), id: crypto.randomUUID(), name: `${source.name} cópia`, transform: { ...source.transform, x: source.transform.x + 32, y: source.transform.y + 32 } };
@@ -108,7 +120,9 @@ export const useEditorStore = create<EditorState>((set) => {
     toggleObjectLock: (objectId) => set((state) => { const object = state.project.scenes.flatMap((scene) => scene.objects).find((item) => item.id === objectId); if (!object) return state; state.updateObject(objectId, { locked: !object.locked }); return state; }),
     undo: () => set((state) => { const previous = state.past.at(-1); if (!previous) return state; return { project: previous, past: state.past.slice(0, -1), future: [snapshot(state.project), ...state.future].slice(0, 50), selectedObjectId: null, saveStatus: 'Alterações não salvas' }; }),
     redo: () => set((state) => { const next = state.future[0]; if (!next) return state; return { project: next, past: [...state.past, snapshot(state.project)].slice(-50), future: state.future.slice(1), selectedObjectId: null, saveStatus: 'Alterações não salvas' }; }),
-    setZoom: (zoom) => set({ zoom: Math.min(1.2, Math.max(0.2, zoom)) }), toggleGrid: () => set((state) => ({ gridEnabled: !state.gridEnabled })),
+    setZoom: (zoom) => set({ zoom: Math.min(1.2, Math.max(0.2, zoom)) }),
+    toggleGrid: () => set((state) => ({ gridEnabled: !state.gridEnabled })),
+    toggleSnap: () => commit((project) => ({ ...project, settings: { ...project.settings, snapEnabled: !project.settings.snapEnabled } })),
     newProject: () => { const project = createEmptyProject('Minha fase'); set({ project, selectedSceneId: project.scenes[0].id, selectedObjectId: null, saveStatus: 'Alterações não salvas', zoom: 0.55, past: [], future: [] }); },
   };
 });
