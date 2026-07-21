@@ -30,6 +30,7 @@ export type RuntimeWorld = {
   platforms: RuntimePlatformState[];
   activeCheckpoint: RuntimeCheckpointState | null;
   collectedObjectIds?: RuntimeObjectMemory;
+  collectibleTotals?: Record<string, number>;
   triggeredObjectIds?: RuntimeObjectMemory;
   activeTriggerContacts?: RuntimeObjectMemory;
   completedDialogueIds?: RuntimeObjectMemory;
