@@ -49,5 +49,5 @@ export function EditorShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><div className="left-editor-stack"><ScenePanel /><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></section><Timeline /><StatusBar /></main>;
+  return <main className="app-shell"><EditorHeader /><EditorToolbar /><section className="workspace"><ScenePanel /><div className="editor-columns"><div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></div></section><Timeline /><StatusBar /></main>;
 }
