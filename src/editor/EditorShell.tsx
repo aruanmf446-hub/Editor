@@ -15,8 +15,19 @@ import { Timeline } from './Timeline';
 
 const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 
+type ResponsivePanel = 'canvas' | 'objects' | 'assets' | 'properties' | 'problems';
+
+const responsivePanels: Array<{ id: ResponsivePanel; icon: string; label: string }> = [
+  { id: 'canvas', icon: '▣', label: 'Canvas' },
+  { id: 'objects', icon: '☷', label: 'Objetos' },
+  { id: 'assets', icon: '◇', label: 'Assets' },
+  { id: 'properties', icon: '⚙', label: 'Propriedades' },
+  { id: 'problems', icon: '!', label: 'Problemas' },
+];
+
 export function EditorShell() {
   const [mode, setMode] = useState<StudioMode>('edit');
+  const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>('canvas');
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,7 +70,29 @@ export function EditorShell() {
   return <main className="app-shell mode-edit">
     <EditorHeader mode={mode} onModeChange={setMode} />
     <EditorToolbar />
-    <section className="workspace"><ScenePanel /><div className="editor-columns"><div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div><EditorCanvas /><div className="right-editor-stack"><Inspector /><ProblemsPanel /></div></div></section>
+    <section className="workspace">
+      <ScenePanel />
+      <nav className="responsive-panel-tabs" aria-label="Painéis do editor">
+        {responsivePanels.map((panel) => (
+          <button
+            type="button"
+            key={panel.id}
+            className={responsivePanel === panel.id ? 'active' : ''}
+            aria-label={`Abrir ${panel.label}`}
+            aria-pressed={responsivePanel === panel.id}
+            onClick={() => setResponsivePanel(panel.id)}
+          >
+            <span aria-hidden="true">{panel.icon}</span>
+            <strong>{panel.label}</strong>
+          </button>
+        ))}
+      </nav>
+      <div className="editor-columns" data-responsive-panel={responsivePanel}>
+        <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
+        <EditorCanvas />
+        <div className="right-editor-stack"><Inspector /><ProblemsPanel /></div>
+      </div>
+    </section>
     <Timeline /><StatusBar />
   </main>;
 }
