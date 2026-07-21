@@ -21,13 +21,7 @@ function memory(world: RuntimeWorld, key: 'collectedObjectIds' | 'triggeredObjec
 
 function normalizedDialogueLines(object: SceneObjectBase): DialogueLine[] {
   if (!object.dialogueLines?.length) return [{ id: `${object.id}-aviso`, speaker: '', text: object.name, durationMs: 1500 }];
-  return object.dialogueLines.filter((line) => line.text.trim().length > 0).map((line, index) => ({
-    ...line,
-    id: line.id?.trim() || `${object.id}-fala-${index + 1}`,
-    speaker: line.speaker?.trim() || '',
-    text: line.text.trim(),
-    durationMs: Math.max(250, line.durationMs ?? 2500),
-  }));
+  return object.dialogueLines.filter((line) => line.text.trim().length > 0).map((line, index) => ({ ...line, id: line.id?.trim() || `${object.id}-fala-${index + 1}`, speaker: line.speaker?.trim() || '', text: line.text.trim(), durationMs: Math.max(250, line.durationMs ?? 2500) }));
 }
 
 export function startRuntimeDialogue(world: RuntimeWorld, object: SceneObjectBase, contactOnly = false): boolean {
@@ -35,16 +29,7 @@ export function startRuntimeDialogue(world: RuntimeWorld, object: SceneObjectBas
   if (object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id]) return false;
   const lines = normalizedDialogueLines(object);
   if (!lines.length) return false;
-  world.activeDialogue = {
-    objectId: object.id,
-    lines,
-    lineIndex: 0,
-    lineElapsed: 0,
-    advanceMode: contactOnly ? 'auto' : object.dialogueAdvanceMode ?? 'manual',
-    blockPlayer: contactOnly ? false : object.dialogueBlockPlayer ?? true,
-    once: Boolean(object.dialogueOnce),
-    contactOnly,
-  };
+  world.activeDialogue = { objectId: object.id, lines, lineIndex: 0, lineElapsed: 0, advanceMode: contactOnly ? 'auto' : object.dialogueAdvanceMode ?? 'manual', blockPlayer: contactOnly ? false : object.dialogueBlockPlayer ?? true, once: Boolean(object.dialogueOnce), contactOnly };
   world.dialogueAdvanceRequested = false;
   return true;
 }
@@ -52,7 +37,7 @@ export function startRuntimeDialogue(world: RuntimeWorld, object: SceneObjectBas
 function finishDialogue(world: RuntimeWorld): void {
   const dialogue = world.activeDialogue;
   if (!dialogue) return;
-  if (dialogue.once) memory(world, 'completedDialogueIds')[dialogue.objectId] = true;
+  memory(world, 'completedDialogueIds')[dialogue.objectId] = true;
   world.activeDialogue = null;
   world.dialogueAdvanceRequested = false;
 }
@@ -61,10 +46,7 @@ function updateDialogues(world: RuntimeWorld, delta: number): void {
   const active = world.activeDialogue;
   if (active) {
     const source = world.scene.objects.find((object) => object.id === active.objectId);
-    if (active.contactOnly) {
-      if (!source || !intersects(world.player, bounds(source))) world.activeDialogue = null;
-      return;
-    }
+    if (active.contactOnly) { if (!source || !intersects(world.player, bounds(source))) world.activeDialogue = null; return; }
     active.lineElapsed += Math.max(0, delta);
     const line = active.lines[active.lineIndex];
     const duration = Math.max(0.25, (line?.durationMs ?? 2500) / 1000);
@@ -109,34 +91,16 @@ function setCollisionEnabled(world: RuntimeWorld, object: SceneObjectBase, enabl
   if (enabled && platform) world.platforms.push(platform);
 }
 
-function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void {
-  if (action.type === 'set-variable') {
-    world.variables ??= {};
-    world.variables[action.key] = action.value;
-    recordCampaignStats(world);
-    return;
-  }
-  if (action.type === 'set-camera') {
-    world.cameraOverride = { x: action.x, y: action.y, remaining: Math.max(0, action.durationMs / 1000) };
-    return;
-  }
-  if (action.type === 'transition-scene') {
-    world.pendingSceneTransition = { sceneId: action.targetSceneId, entryId: action.targetEntryId?.trim() || undefined };
-    return;
-  }
+export function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void {
+  if (action.type === 'set-variable') { world.variables ??= {}; world.variables[action.key] = action.value; recordCampaignStats(world); return; }
+  if (action.type === 'set-camera') { world.cameraOverride = { x: action.x, y: action.y, remaining: Math.max(0, action.durationMs / 1000) }; return; }
+  if (action.type === 'transition-scene') { world.pendingSceneTransition = { sceneId: action.targetSceneId, entryId: action.targetEntryId?.trim() || undefined }; return; }
   const target = world.scene.objects.find((object) => object.id === action.targetObjectId);
   if (!target) return;
-  if (action.type === 'set-object-visible') {
-    world.objectVisibilityOverrides ??= {};
-    world.objectVisibilityOverrides[target.id] = action.visible;
-  } else if (action.type === 'set-collision-enabled') {
-    setCollisionEnabled(world, target, action.enabled);
-  } else if (action.type === 'activate-enemy') {
-    const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === target.id);
-    if (enemy && enemy.health > 0) { enemy.removed = !action.active; enemy.velocityX = 0; }
-  } else if (action.type === 'start-dialogue') {
-    startRuntimeDialogue(world, target);
-  }
+  if (action.type === 'set-object-visible') { world.objectVisibilityOverrides ??= {}; world.objectVisibilityOverrides[target.id] = action.visible; }
+  else if (action.type === 'set-collision-enabled') setCollisionEnabled(world, target, action.enabled);
+  else if (action.type === 'activate-enemy') { const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === target.id); if (enemy && enemy.health > 0) { enemy.removed = !action.active; enemy.velocityX = 0; } }
+  else if (action.type === 'start-dialogue') startRuntimeDialogue(world, target);
 }
 
 function updateTriggers(world: RuntimeWorld): void {
@@ -157,34 +121,27 @@ function updateTriggers(world: RuntimeWorld): void {
 
 function updateCollectibles(world: RuntimeWorld): void {
   const collected = memory(world, 'collectedObjectIds');
+  world.collectibleTotals ??= {};
   for (const object of world.scene.objects) {
     if (object.type !== 'collectible' || !isRuntimeObjectVisible(world, object) || collected[object.id]) continue;
-    if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) {
-      collected[object.id] = true;
-      recordCampaignCollectible(world, object.id);
-    }
+    if (world.player.mode === 'dead' || !intersects(world.player, bounds(object))) continue;
+    collected[object.id] = true;
+    const definition = object.collectible;
+    const collectibleId = definition?.id?.trim() || object.id;
+    const value = Math.max(1, definition?.value ?? 1);
+    world.collectibleTotals[collectibleId] = (world.collectibleTotals[collectibleId] ?? 0) + value;
+    recordCampaignCollectible(world, object.id, collectibleId, value);
+    for (const action of definition?.actions ?? []) executeTriggerAction(world, action);
   }
   world.collectiblesRemaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).length;
 }
 
 export function updateRuntimeAdvancedObjects(world: RuntimeWorld, delta = 0): void {
-  updateNoCollisionZone(world);
-  updateDropZones(world);
-  updateTriggers(world);
-  updateDialogues(world, delta);
-  updateCollectibles(world);
+  updateNoCollisionZone(world); updateDropZones(world); updateTriggers(world); updateDialogues(world, delta); updateCollectibles(world);
 }
 
 export function resetRuntimeSceneObjectState(world: RuntimeWorld): void {
-  world.playerNoCollision = false;
-  world.activeDialogue = null;
-  world.dialogueAdvanceRequested = false;
-  world.lastTriggerId = null;
-  world.activeTriggerContacts = {};
-  world.objectVisibilityOverrides = {};
-  world.collisionEnabledOverrides = {};
-  world.pendingSceneTransition = null;
-  world.cameraOverride = null;
+  world.playerNoCollision = false; world.activeDialogue = null; world.dialogueAdvanceRequested = false; world.lastTriggerId = null; world.activeTriggerContacts = {}; world.objectVisibilityOverrides = {}; world.collisionEnabledOverrides = {}; world.pendingSceneTransition = null; world.cameraOverride = null;
   for (const object of world.scene.objects) {
     if ((object.type === 'enemy-cactus' || object.type === 'boss') && object.enemyActiveAtStart === false) {
       const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === object.id);
