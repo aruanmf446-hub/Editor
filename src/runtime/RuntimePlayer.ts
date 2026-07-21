@@ -7,88 +7,33 @@ export type RuntimePlayerVisualState = 'idle' | 'walk' | 'run' | 'jump' | 'fall'
 export type RuntimePlayerMode = RuntimePlayerVisualState;
 
 export type RuntimePlayerState = {
-  x: number;
-  y: number;
-  previousX: number;
-  previousY: number;
-  renderPreviousX: number;
-  renderPreviousY: number;
-  spawnX: number;
-  spawnY: number;
-  width: number;
-  height: number;
-  standingHeight: number;
-  assetId?: string;
-  animationAssignments?: PlayerAnimationAssignments;
-  velocityX: number;
-  velocityY: number;
-  direction: 'left' | 'right';
-  grounded: boolean;
-  crouching: boolean;
-  health: number;
-  maxHealth: number;
-  respawnHealth: number;
-  attack: number;
-  defense: number;
-  coyoteRemaining: number;
-  jumpBufferRemaining: number;
-  doubleJumpEnabled: boolean;
-  airJumpsRemaining: number;
-  mode: RuntimePlayerMode;
-  visualState: RuntimePlayerVisualState;
-  attackSerial: number;
-  attackElapsed: number;
-  attackCooldownRemaining: number;
-  attackHitbox: RuntimeBounds | null;
-  defending: boolean;
-  invulnerabilityRemaining: number;
-  hurtRemaining: number;
-  deathRemaining: number;
-  lastCollisionSide: 'left' | 'right' | 'top' | 'bottom' | null;
+  x: number; y: number; previousX: number; previousY: number; renderPreviousX: number; renderPreviousY: number;
+  spawnX: number; spawnY: number; width: number; height: number; standingHeight: number;
+  assetId?: string; animationAssignments?: PlayerAnimationAssignments;
+  velocityX: number; velocityY: number; direction: 'left' | 'right'; grounded: boolean; crouching: boolean;
+  health: number; maxHealth: number; lives: number; maxLives: number; respawnHealth: number; attack: number; defense: number;
+  coyoteRemaining: number; jumpBufferRemaining: number; doubleJumpEnabled: boolean; airJumpsRemaining: number;
+  mode: RuntimePlayerMode; visualState: RuntimePlayerVisualState; attackSerial: number; attackElapsed: number;
+  attackCooldownRemaining: number; attackHitbox: RuntimeBounds | null; defending: boolean; invulnerabilityRemaining: number;
+  hurtRemaining: number; deathRemaining: number; lastCollisionSide: 'left' | 'right' | 'top' | 'bottom' | null;
 };
 
 /** player-spawn x/y represent the top-left corner of the initial player hitbox. */
 export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState {
-  const health = spawn.initialHealth ?? 3;
+  const health = Math.max(1, spawn.initialHealth ?? 3);
+  const lives = Math.max(1, Math.floor(spawn.initialLives ?? 3));
   const doubleJumpEnabled = Boolean(spawn.doubleJumpEnabled);
   return {
-    x: spawn.transform.x,
-    y: spawn.transform.y,
-    previousX: spawn.transform.x,
-    previousY: spawn.transform.y,
-    renderPreviousX: spawn.transform.x,
-    renderPreviousY: spawn.transform.y,
-    spawnX: spawn.transform.x,
-    spawnY: spawn.transform.y,
-    width: spawn.transform.width,
-    height: spawn.transform.height,
-    standingHeight: spawn.transform.height,
-    assetId: spawn.assetId,
-    animationAssignments: spawn.animationAssignments,
-    velocityX: 0,
-    velocityY: 0,
-    direction: spawn.direction ?? 'right',
-    grounded: false,
-    crouching: false,
-    health,
-    maxHealth: health,
-    respawnHealth: health,
-    attack: spawn.initialAttack ?? 1,
-    defense: spawn.initialDefense ?? 1,
-    coyoteRemaining: 0,
-    jumpBufferRemaining: 0,
-    doubleJumpEnabled,
-    airJumpsRemaining: doubleJumpEnabled ? 1 : 0,
-    mode: 'fall',
-    visualState: 'fall',
-    attackSerial: 0,
-    attackElapsed: 0,
-    attackCooldownRemaining: 0,
-    attackHitbox: null,
-    defending: false,
-    invulnerabilityRemaining: 0,
-    hurtRemaining: 0,
-    deathRemaining: 0,
+    x: spawn.transform.x, y: spawn.transform.y, previousX: spawn.transform.x, previousY: spawn.transform.y,
+    renderPreviousX: spawn.transform.x, renderPreviousY: spawn.transform.y, spawnX: spawn.transform.x, spawnY: spawn.transform.y,
+    width: spawn.transform.width, height: spawn.transform.height, standingHeight: spawn.transform.height,
+    assetId: spawn.assetId, animationAssignments: spawn.animationAssignments, velocityX: 0, velocityY: 0,
+    direction: spawn.direction ?? 'right', grounded: false, crouching: false,
+    health, maxHealth: health, lives, maxLives: lives, respawnHealth: health,
+    attack: spawn.initialAttack ?? 1, defense: spawn.initialDefense ?? 1,
+    coyoteRemaining: 0, jumpBufferRemaining: 0, doubleJumpEnabled, airJumpsRemaining: doubleJumpEnabled ? 1 : 0,
+    mode: 'fall', visualState: 'fall', attackSerial: 0, attackElapsed: 0, attackCooldownRemaining: 0,
+    attackHitbox: null, defending: false, invulnerabilityRemaining: 0, hurtRemaining: 0, deathRemaining: 0,
     lastCollisionSide: null,
   };
 }
@@ -104,12 +49,7 @@ export function resolvePlayerVisualState(player: RuntimePlayerState): RuntimePla
 }
 
 export function canPlayerStand(player: RuntimePlayerState, platforms: RuntimePlatformState[]): boolean {
-  const candidate = {
-    x: player.x,
-    y: player.y + player.height - player.standingHeight,
-    width: player.width,
-    height: player.standingHeight,
-  };
+  const candidate = { x: player.x, y: player.y + player.height - player.standingHeight, width: player.width, height: player.standingHeight };
   return !platforms.some((platform) => !platform.oneWay && intersects(candidate, platform));
 }
 
@@ -122,27 +62,11 @@ export function setPlayerCrouching(player: RuntimePlayerState, crouching: boolea
 }
 
 export function resetPlayerAtSpawn(player: RuntimePlayerState): void {
-  player.x = player.spawnX;
-  player.y = player.spawnY;
-  player.previousX = player.spawnX;
-  player.previousY = player.spawnY;
-  player.renderPreviousX = player.spawnX;
-  player.renderPreviousY = player.spawnY;
-  player.height = player.standingHeight;
-  player.velocityX = 0;
-  player.velocityY = 0;
-  player.grounded = false;
-  player.crouching = false;
-  player.coyoteRemaining = 0;
-  player.jumpBufferRemaining = 0;
-  player.airJumpsRemaining = player.doubleJumpEnabled ? 1 : 0;
-  player.mode = 'fall';
-  player.visualState = 'fall';
-  player.attackElapsed = 0;
-  player.attackCooldownRemaining = 0;
-  player.attackHitbox = null;
-  player.defending = false;
-  player.hurtRemaining = 0;
-  player.deathRemaining = 0;
+  player.x = player.spawnX; player.y = player.spawnY; player.previousX = player.spawnX; player.previousY = player.spawnY;
+  player.renderPreviousX = player.spawnX; player.renderPreviousY = player.spawnY; player.height = player.standingHeight;
+  player.velocityX = 0; player.velocityY = 0; player.grounded = false; player.crouching = false;
+  player.coyoteRemaining = 0; player.jumpBufferRemaining = 0; player.airJumpsRemaining = player.doubleJumpEnabled ? 1 : 0;
+  player.mode = 'fall'; player.visualState = 'fall'; player.attackElapsed = 0; player.attackCooldownRemaining = 0;
+  player.attackHitbox = null; player.defending = false; player.hurtRemaining = 0; player.deathRemaining = 0;
   player.lastCollisionSide = null;
 }
