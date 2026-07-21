@@ -114,7 +114,7 @@ export function RuntimeGame({ onExit }: Props) {
     dialogueAdvanceRequested: false,
     lastTriggerId: null,
     playerNoCollision: false,
-    pendingSceneTransitionId: null,
+    pendingSceneTransition: null,
     cameraOverride: null,
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
