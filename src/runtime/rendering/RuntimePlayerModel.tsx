@@ -214,23 +214,28 @@ export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
           if (resizeFrameId) return;
           resizeFrameId = requestAnimationFrame(resizeNow);
         };
+        const resetAnimationClock = () => {
+          runtime.lastTime = performance.now();
+        };
 
         resizeNow();
         runtime.resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleResize);
         runtime.resizeObserver?.observe(canvas);
         window.addEventListener('resize', scheduleResize, { passive: true });
         document.addEventListener('fullscreenchange', scheduleResize);
+        document.addEventListener('visibilitychange', resetAnimationClock);
         window.visualViewport?.addEventListener('resize', scheduleResize, { passive: true });
         runtime.removeResizeListeners = () => {
           if (resizeFrameId) cancelAnimationFrame(resizeFrameId);
           window.removeEventListener('resize', scheduleResize);
           document.removeEventListener('fullscreenchange', scheduleResize);
+          document.removeEventListener('visibilitychange', resetAnimationClock);
           window.visualViewport?.removeEventListener('resize', scheduleResize);
         };
 
         const render = (now: number) => {
           if (cancelled || generation !== loadGenerationRef.current || runtimeRef.current !== runtime) return;
-          const visualDelta = Math.min(Math.max(0, (now - runtime.lastTime) / 1000), 0.1);
+          const visualDelta = Math.max(0, (now - runtime.lastTime) / 1000);
           runtime.lastTime = now;
 
           const currentWorld = worldRef.current;
