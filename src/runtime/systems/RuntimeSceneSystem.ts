@@ -1,4 +1,5 @@
 import type { ProjectScene, SceneObjectBase } from '../../types/project';
+import { resetRuntimeSceneObjectState } from '../RuntimeAdvancedObjects';
 import { intersects } from '../RuntimeCollision';
 import { createRuntimeEnemies } from '../RuntimeEnemy';
 import { createRuntimePickups } from '../RuntimePickup';
@@ -80,6 +81,7 @@ export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene): voi
   world.paused = false;
   world.respawnFailure = false;
   world.pauseReason = undefined;
+  resetRuntimeSceneObjectState(world);
   respawnPlayerSafely(world);
 }
 
@@ -146,6 +148,7 @@ export function updateRuntimeFinish(world: RuntimeWorld): void {
     && intersects(world.player, runtimeObjectBounds(object))
   );
   if (!finish) return;
+  if (finish.requiresAllCollectibles && (world.collectiblesRemaining ?? 0) > 0) return;
 
   const target = resolveFinishTarget(world, finish);
   if (!target) {
