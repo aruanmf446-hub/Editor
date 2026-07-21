@@ -4,13 +4,7 @@ import type { RuntimeBounds, RuntimePlatformState, RuntimeWorld } from './Runtim
 import { receivePlayerDamage } from './systems/PlayerCombatSystem';
 
 export type RuntimeObjectMemory = Record<string, true>;
-
-const bounds = (object: SceneObjectBase): RuntimeBounds => ({
-  x: object.transform.x,
-  y: object.transform.y,
-  width: object.transform.width,
-  height: object.transform.height,
-});
+const bounds = (object: SceneObjectBase): RuntimeBounds => ({ x: object.transform.x, y: object.transform.y, width: object.transform.width, height: object.transform.height });
 
 export function isRuntimeObjectVisible(world: RuntimeWorld, object: SceneObjectBase): boolean {
   return world.objectVisibilityOverrides?.[object.id] ?? (object.visible && !object.editorOnly);
@@ -26,15 +20,13 @@ function memory(world: RuntimeWorld, key: 'collectedObjectIds' | 'triggeredObjec
 
 function normalizedDialogueLines(object: SceneObjectBase): DialogueLine[] {
   if (!object.dialogueLines?.length) return [{ id: `${object.id}-aviso`, speaker: '', text: object.name, durationMs: 1500 }];
-  return object.dialogueLines
-    .filter((line) => line.text.trim().length > 0)
-    .map((line, index) => ({
-      ...line,
-      id: line.id?.trim() || `${object.id}-fala-${index + 1}`,
-      speaker: line.speaker?.trim() || '',
-      text: line.text.trim(),
-      durationMs: Math.max(250, line.durationMs ?? 2500),
-    }));
+  return object.dialogueLines.filter((line) => line.text.trim().length > 0).map((line, index) => ({
+    ...line,
+    id: line.id?.trim() || `${object.id}-fala-${index + 1}`,
+    speaker: line.speaker?.trim() || '',
+    text: line.text.trim(),
+    durationMs: Math.max(250, line.durationMs ?? 2500),
+  }));
 }
 
 export function startRuntimeDialogue(world: RuntimeWorld, object: SceneObjectBase, contactOnly = false): boolean {
@@ -84,39 +76,23 @@ function updateDialogues(world: RuntimeWorld, delta: number): void {
     if (active.lineIndex >= active.lines.length) finishDialogue(world);
     return;
   }
-
-  const dialogue = world.scene.objects.find((object) =>
-    object.type === 'dialogue-zone'
-    && isRuntimeObjectVisible(world, object)
-    && intersects(world.player, bounds(object))
-    && !(object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id])
-  );
+  const dialogue = world.scene.objects.find((object) => object.type === 'dialogue-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object)) && !(object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id]));
   if (dialogue) startRuntimeDialogue(world, dialogue, !dialogue.dialogueLines?.length);
 }
 
-export function isPlayerBlockedByDialogue(world: RuntimeWorld): boolean {
-  return Boolean(world.activeDialogue?.blockPlayer);
-}
+export function isPlayerBlockedByDialogue(world: RuntimeWorld): boolean { return Boolean(world.activeDialogue?.blockPlayer); }
 
 function updateNoCollisionZone(world: RuntimeWorld): void {
-  world.playerNoCollision = world.scene.objects.some((object) =>
-    object.type === 'no-collision-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object))
-  );
+  world.playerNoCollision = world.scene.objects.some((object) => object.type === 'no-collision-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object)));
 }
 
 function updateDropZones(world: RuntimeWorld): void {
   if (world.player.mode === 'dead') return;
-  const dropped = world.scene.objects.some((object) =>
-    object.type === 'drop-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object))
-  );
+  const dropped = world.scene.objects.some((object) => object.type === 'drop-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object)));
   if (!dropped) return;
   world.player.invulnerabilityRemaining = 0;
   world.player.defending = false;
-  receivePlayerDamage(world, {
-    amount: world.player.health + world.player.defense + 999,
-    sourceX: null,
-    damageType: 'environmental',
-  });
+  receivePlayerDamage(world, { amount: world.player.health + world.player.defense + 999, sourceX: null, damageType: 'environmental' });
 }
 
 function platformFromObject(object: SceneObjectBase): RuntimePlatformState | null {
@@ -143,10 +119,9 @@ function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void 
     return;
   }
   if (action.type === 'transition-scene') {
-    world.pendingSceneTransitionId = action.targetSceneId;
+    world.pendingSceneTransition = { sceneId: action.targetSceneId, entryId: action.targetEntryId?.trim() || undefined };
     return;
   }
-
   const target = world.scene.objects.find((object) => object.id === action.targetObjectId);
   if (!target) return;
   if (action.type === 'set-object-visible') {
@@ -156,10 +131,7 @@ function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void 
     setCollisionEnabled(world, target, action.enabled);
   } else if (action.type === 'activate-enemy') {
     const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === target.id);
-    if (enemy && enemy.health > 0) {
-      enemy.removed = !action.active;
-      enemy.velocityX = 0;
-    }
+    if (enemy && enemy.health > 0) { enemy.removed = !action.active; enemy.velocityX = 0; }
   } else if (action.type === 'start-dialogue') {
     startRuntimeDialogue(world, target);
   }
@@ -171,10 +143,7 @@ function updateTriggers(world: RuntimeWorld): void {
   for (const object of world.scene.objects) {
     if (object.type !== 'trigger' || !isRuntimeObjectVisible(world, object)) continue;
     const overlapping = intersects(world.player, bounds(object));
-    if (!overlapping) {
-      delete contacts[object.id];
-      continue;
-    }
+    if (!overlapping) { delete contacts[object.id]; continue; }
     if (contacts[object.id]) continue;
     contacts[object.id] = true;
     if (object.triggerOnce && triggered[object.id]) continue;
@@ -190,9 +159,7 @@ function updateCollectibles(world: RuntimeWorld): void {
     if (object.type !== 'collectible' || !isRuntimeObjectVisible(world, object) || collected[object.id]) continue;
     if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) collected[object.id] = true;
   }
-  world.collectiblesRemaining = world.scene.objects.filter((object) =>
-    object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]
-  ).length;
+  world.collectiblesRemaining = world.scene.objects.filter((object) => object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]).length;
 }
 
 export function updateRuntimeAdvancedObjects(world: RuntimeWorld, delta = 0): void {
@@ -211,7 +178,7 @@ export function resetRuntimeSceneObjectState(world: RuntimeWorld): void {
   world.activeTriggerContacts = {};
   world.objectVisibilityOverrides = {};
   world.collisionEnabledOverrides = {};
-  world.pendingSceneTransitionId = null;
+  world.pendingSceneTransition = null;
   world.cameraOverride = null;
   for (const object of world.scene.objects) {
     if ((object.type === 'enemy-cactus' || object.type === 'boss') && object.enemyActiveAtStart === false) {
