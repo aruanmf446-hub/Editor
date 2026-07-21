@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import { RuntimeController, type RuntimeControllerSnapshot, type RuntimePauseReason } from './RuntimeController';
+import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { RuntimeDebugOverlay } from './RuntimeDebugOverlay';
 import { loadRuntimeProject } from './RuntimeProjectLoader';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
+import { RuntimePlayerModel, type RuntimePlayerModelStatus } from './rendering/RuntimePlayerModel';
 
 type Props = { onExit: () => void };
 type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string };
@@ -18,6 +20,7 @@ export function RuntimeGame({ onExit }: Props) {
   const [view, setView] = useState<RuntimeControllerSnapshot | null>(null);
   const [pauseReason, setPauseReason] = useState<RuntimePauseReason>(null);
   const [debug, setDebug] = useState(false);
+  const [playerModelStatus, setPlayerModelStatus] = useState<RuntimePlayerModelStatus>('loading');
 
   const loadResult = useMemo<RuntimeLoadResult>(() => {
     try { return loadRuntimeProject(sourceProject); }
@@ -74,17 +77,20 @@ export function RuntimeGame({ onExit }: Props) {
     player: createRuntimePlayer(loadResult.spawn),
     platforms: createRuntimePlatforms(loadResult.initialScene),
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
-    input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false },
+    input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
     paused: false,
     completed: false,
     physicsSteps: 0,
     accumulator: 0,
+    droppedPhysicsTime: 0,
+    respawnFailure: false,
   };
   const world = view?.world ?? fallbackWorld;
   const { scene, player, camera } = world;
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
+  const interpolationAlpha = RUNTIME_CONFIG.fixedStep > 0 ? world.accumulator / RUNTIME_CONFIG.fixedStep : 1;
 
   const togglePause = () => {
     const controller = controllerRef.current;
@@ -95,13 +101,23 @@ export function RuntimeGame({ onExit }: Props) {
 
   return <section className="runtime-game">
     <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span><button onClick={togglePause}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
-    <div ref={viewportRef} className="runtime-viewport"><div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
-      {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-      {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
-      {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
-      {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
-      <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>
-    </div></div>
+    <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
+      <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
+        {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
+        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
+        {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
+        {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
+      </div>
+      <RuntimePlayerModel
+        assetId={loadResult.spawn.assetId}
+        player={player}
+        cameraX={camera.x}
+        cameraY={camera.y}
+        interpolationAlpha={interpolationAlpha}
+        onStatusChange={setPlayerModelStatus}
+      />
+    </div>
     {pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}
     {debug && <RuntimeDebugOverlay fps={view?.fps ?? 0} world={world} />}
   </section>;
