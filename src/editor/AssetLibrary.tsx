@@ -24,16 +24,15 @@ export function AssetLibrary() {
 
   useEffect(() => () => { Object.values(previewUrls).forEach((url) => URL.revokeObjectURL(url)); }, [previewUrls]);
 
-  const useAsBackground = (asset: AssetRecord) => {
+  const applyBackground = (asset: AssetRecord) => {
     if (!selectedSceneId) return;
     updateScene(selectedSceneId, { backgroundAssetId: asset.id });
   };
 
   const instantiate = (asset: AssetRecord) => {
-    if (asset.category === 'background') { useAsBackground(asset); return; }
+    if (asset.category === 'background') { applyBackground(asset); return; }
     if (asset.category === 'audio') return;
-    const editor = useEditorStore.getState();
-    editor.addAssetInstance(asset.id);
+    useEditorStore.getState().addAssetInstance(asset.id);
   };
 
   return (
@@ -53,7 +52,7 @@ export function AssetLibrary() {
                 <div className="asset-preview">{previewUrls[asset.id] ? <img src={previewUrls[asset.id]} alt="" /> : <span>{icons[asset.category]}</span>}</div>
                 <button className="asset-name" title="Renomear" onClick={() => { const next = window.prompt('Nome do asset', asset.name); if (next?.trim()) void rename(asset.id, next.trim()); }}>{asset.name}</button>
                 <small>{Math.ceil(asset.size / 1024)} KB</small>
-                {canBeBackground && <button className="asset-background-button" disabled={activeBackground} onClick={() => useAsBackground(asset)}>{activeBackground ? 'Fundo atual' : 'Usar como fundo'}</button>}
+                {canBeBackground && <button className="asset-background-button" disabled={activeBackground} onClick={() => applyBackground(asset)}>{activeBackground ? 'Fundo atual' : 'Usar como fundo'}</button>}
                 <button className="asset-delete" title="Excluir asset" onClick={() => { if (window.confirm(`Excluir ${asset.name}?`)) void remove(asset.id); }}>×</button>
               </article>;
             })}</div></section>;
