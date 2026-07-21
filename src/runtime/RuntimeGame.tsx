@@ -109,6 +109,7 @@ export function RuntimeGame({ onExit }: Props) {
       </div>
       <RuntimePlayerModel
         assetId={loadResult.spawn.assetId}
+        animationAssignments={loadResult.spawn.animationAssignments}
         world={world}
         onStatusChange={setPlayerModelStatus}
       />
