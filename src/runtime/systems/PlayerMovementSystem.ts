@@ -6,6 +6,15 @@ const approach = (value: number, target: number, amount: number) => value < targ
 
 export function updatePlayerMovement(world: RuntimeWorld, delta: number) {
   const { player, input } = world;
+  const movementLocked = player.mode === 'dead' || player.mode === 'hurt' || player.mode === 'attack' || player.mode === 'defend';
+
+  if (movementLocked) {
+    if (player.mode === 'attack' || player.mode === 'defend' || player.mode === 'dead') {
+      player.velocityX = approach(player.velocityX, 0, RUNTIME_CONFIG.playerDeceleration * delta);
+    }
+    return;
+  }
+
   const axis = Number(input.right) - Number(input.left);
   const targetSpeed = axis * RUNTIME_CONFIG.playerMaxSpeed;
   player.velocityX = approach(player.velocityX, targetSpeed, (axis === 0 ? RUNTIME_CONFIG.playerDeceleration : RUNTIME_CONFIG.playerAcceleration) * delta);
