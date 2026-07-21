@@ -216,8 +216,16 @@ export function Inspector() {
               <h3>Recarga</h3>
               <div className="field-grid">
                 {numericField(object, 'Quantidade', 'pickupAmount', 1)}
-                {numericField(object, 'Respawn ms', 'respawnDelayMs', 0)}
+                {object.respawnable && numericField(object, 'Tempo para reaparecer (ms)', 'respawnDelayMs', 1)}
               </div>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(object.respawnable)}
+                  onChange={(event) => updateObject(object.id, { respawnable: event.target.checked })}
+                />
+                Reaparecer depois da coleta
+              </label>
             </>
           )}
 

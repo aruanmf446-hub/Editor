@@ -8,6 +8,7 @@ import {
 } from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { createRuntimeEnemies } from './RuntimeEnemy';
+import { createRuntimePickups } from './RuntimePickup';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
 import { receivePlayerDamage, updatePlayerCombat } from './systems/PlayerCombatSystem';
@@ -60,12 +61,15 @@ function createWorld(scenes: ProjectScene[]): RuntimeWorld {
   const initial = scenes[0];
   const spawn = initial.objects.find((candidate) => candidate.type === 'player-spawn');
   if (!spawn) throw new Error('spawn ausente no teste');
+  const pickupMemory = {};
   return {
     project: project(scenes),
     scene: initial,
     sceneRevision: 0,
     player: createRuntimePlayer(spawn),
     enemies: createRuntimeEnemies(initial),
+    pickups: createRuntimePickups(initial, pickupMemory),
+    pickupMemory,
     platforms: createRuntimePlatforms(initial),
     activeCheckpoint: null,
     camera: { x: 120, y: 80, viewportWidth: 400, viewportHeight: 300 },
@@ -114,15 +118,16 @@ describe('RuntimeSceneSystem', () => {
     expect(world.activeCheckpoint?.objectId).toBe(high.id);
   });
 
-  it('troca para a próxima cena e reconstrói câmera, plataformas e inimigos', () => {
+  it('troca para a próxima cena e reconstrói câmera, plataformas, inimigos e pickups', () => {
     const spawnOne = object('one', 'player-spawn', 40, 300, 50, 100, { initialHealth: 5, initialAttack: 2, initialDefense: 1, assetId: 'player-a' });
     const finish = object('one', 'finish', 100, 300, 80, 100, { endingMode: 'next-scene' });
     const spawnTwo = object('two', 'player-spawn', 70, 250, 60, 110, { assetId: 'player-b' });
     const platformTwo = object('two', 'platform', 0, 500, 600, 40);
     const cactusTwo = object('two', 'enemy-cactus', 300, 330, 60, 100);
+    const pickupTwo = object('two', 'pickup-attack', 420, 330, 40, 40, { pickupAmount: 2 });
     const world = createWorld([
       scene('one', 0, [spawnOne, finish]),
-      scene('two', 1, [spawnTwo, platformTwo, cactusTwo]),
+      scene('two', 1, [spawnTwo, platformTwo, cactusTwo, pickupTwo]),
     ]);
     world.player.x = 110;
     world.player.y = 300;
@@ -138,6 +143,7 @@ describe('RuntimeSceneSystem', () => {
     expect(world.camera.y).toBe(0);
     expect(world.platforms.map((item) => item.id)).toContain(platformTwo.id);
     expect(world.enemies.map((item) => item.id)).toContain(cactusTwo.id);
+    expect(world.pickups.map((item) => item.id)).toContain(pickupTwo.id);
     expect(world.player.x).toBe(70);
     expect(world.player.y).toBe(250);
     expect(world.player.health).toBe(4);

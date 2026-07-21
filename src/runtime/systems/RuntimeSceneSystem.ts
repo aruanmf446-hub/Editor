@@ -1,6 +1,7 @@
 import type { ProjectScene, SceneObjectBase } from '../../types/project';
 import { intersects } from '../RuntimeCollision';
 import { createRuntimeEnemies } from '../RuntimeEnemy';
+import { createRuntimePickups } from '../RuntimePickup';
 import { createRuntimePlayer } from '../RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from '../RuntimeWorld';
 import { respawnPlayerSafely } from './CollisionSystem';
@@ -71,6 +72,7 @@ export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene): voi
   world.player = nextPlayer;
   world.platforms = createRuntimePlatforms(scene);
   world.enemies = createRuntimeEnemies(scene);
+  world.pickups = createRuntimePickups(scene, world.pickupMemory);
   world.activeCheckpoint = null;
   world.camera.x = 0;
   world.camera.y = 0;

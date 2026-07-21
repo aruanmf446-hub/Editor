@@ -38,7 +38,7 @@ const input = () => ({ left: false, right: false, jump: false, crouch: false, at
 function world(objects: SceneObjectBase[] = []): RuntimeWorld {
   const spawn = object('player-spawn', 100, 100, 50, 100, { initialHealth: 3, initialAttack: 1, initialDefense: 1, direction: 'right' });
   const current = { ...scene, objects: [spawn, ...objects] };
-  return { project: { ...project, scenes: [current] }, scene: current, sceneRevision: 0, player: createRuntimePlayer(spawn), enemies: [], platforms: createRuntimePlatforms(current), activeCheckpoint: null, camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
+  return { project: { ...project, scenes: [current] }, scene: current, sceneRevision: 0, player: createRuntimePlayer(spawn), enemies: [], pickups: [], pickupMemory: {}, platforms: createRuntimePlatforms(current), activeCheckpoint: null, camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
 }
 
 function simulate(state: RuntimeWorld, frames: number, delta: number) {

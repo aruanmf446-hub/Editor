@@ -1,6 +1,7 @@
 import type { RuntimeWorld } from './RuntimeWorld';
 import { resolvePlayerVisualState } from './RuntimePlayer';
 import { updateRuntimeEnemies } from './RuntimeEnemy';
+import { updateRuntimePickups } from './RuntimePickup';
 import { updatePlayerMovement } from './systems/PlayerMovementSystem';
 import { updatePlayerCombat } from './systems/PlayerCombatSystem';
 import { applyGravity } from './systems/GravitySystem';
@@ -19,6 +20,7 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
     resolveWorldMovement(world, delta);
   }
   updateRuntimeEnemies(world, delta);
+  updateRuntimePickups(world, delta);
   updateRuntimeCheckpoints(world);
   updateRuntimeFinish(world);
   world.player.visualState = resolvePlayerVisualState(world.player);
