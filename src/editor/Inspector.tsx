@@ -1,25 +1,334 @@
 import { useMemo } from 'react';
 import { useEditorStore } from '../state/editorStore';
+import type {
+  BackgroundFit,
+  FinishEndingMode,
+  SceneBackgroundSettings,
+  SceneObjectBase,
+  Transform2D,
+} from '../types/project';
 import { validateProject } from '../validation/validateProject';
 
-export function Inspector(){
- const {project,selectedSceneId,selectedObjectId,renameProject,updateScene,updateObject}=useEditorStore();
- const scene=project.scenes.find(i=>i.id===selectedSceneId)??project.scenes[0],object=scene.objects.find(i=>i.id===selectedObjectId) as any,validation=useMemo(()=>validateProject(project),[project]);
- const nf=(label:string,key:string,min?:number)=><label>{label}<input type="number" min={min} value={object?.[key]??0} onChange={e=>updateObject(object.id,{[key]:Number(e.target.value)} as any)}/></label>;
- const tf=(label:string,key:'x'|'y'|'width'|'height'|'rotation')=><label>{label}<input type="number" value={object.transform[key]} onChange={e=>updateObject(object.id,{transform:{...object.transform,[key]:Number(e.target.value)}})}/></label>;
- const bf=(label:string,key:'positionX'|'positionY'|'scale'|'editorOpacity',step='1')=><label>{label}<input type="number" step={step} value={scene.background[key]} onChange={e=>updateScene(scene.id,{background:{[key]:Number(e.target.value)}})}/></label>;
- const errors=validation.issues.filter(i=>i.severity==='error').length,warnings=validation.issues.filter(i=>i.severity==='warning').length,infos=validation.issues.filter(i=>i.severity==='info').length;
- return <aside className="panel inspector"><h2>Propriedades</h2><label>Projeto<input value={project.project.name} onChange={e=>renameProject(e.target.value)}/></label>
- {object?<div className="inspector-section"><h3>{object.name}</h3><label>Nome<input value={object.name} onChange={e=>updateObject(object.id,{name:e.target.value})}/></label><div className="field-grid">{tf('Posição X','x')}{tf('Posição Y','y')}{tf('Largura','width')}{tf('Altura','height')}{tf('Rotação','rotation')}</div>
- {object.type==='player-spawn'&&<><h3>Player</h3><label>Direção<select value={object.direction} onChange={e=>updateObject(object.id,{direction:e.target.value} as any)}><option value="left">Esquerda</option><option value="right">Direita</option></select></label><div className="field-grid">{nf('Vida inicial','initialHealth',0)}{nf('Ataque inicial','initialAttack',0)}{nf('Defesa inicial','initialDefense',0)}</div></>}
- {(object.type==='platform'||object.type==='wall')&&<><h3>Física</h3><label>Colisão<select value={object.collisionType??'solid'} onChange={e=>updateObject(object.id,{collisionType:e.target.value} as any)}><option value="solid">Sólida</option><option value="one-way">Atravessável</option><option value="none">Sem colisão</option></select></label></>}
- {object.type==='enemy-cactus'&&<><h3>Cacto</h3><label>Direção<select value={object.direction} onChange={e=>updateObject(object.id,{direction:e.target.value} as any)}><option value="left">Esquerda</option><option value="right">Direita</option></select></label><div className="field-grid">{nf('Limite esquerdo','patrolLeft')}{nf('Limite direito','patrolRight')}{nf('Área de visão','visionDistance',0)}{nf('Vel. andando','walkSpeed',0)}{nf('Vel. correndo','runSpeed',0)}{nf('Dist. ataque','attackDistance',0)}{nf('Dano','damage',0)}{nf('Intervalo ms','attackCooldownMs',1)}</div></>}
- {object.type==='boss'&&<><h3>Boss</h3><div className="field-grid">{nf('Vida','bossHealth',1)}{nf('Fases','bossPhaseCount',1)}{nf('Dano','damage',0)}{nf('Intervalo ms','attackCooldownMs',1)}</div></>}
- {object.type==='checkpoint'&&<><h3>Checkpoint</h3><div className="field-grid">{nf('Ordem','checkpointOrder',1)}{nf('Vida ao retornar','respawnHealth',0)}</div></>}
- {object.type.startsWith('pickup-')&&<><h3>Recarga</h3><div className="field-grid">{nf('Quantidade','pickupAmount',1)}{nf('Respawn ms','respawnDelayMs',0)}</div></>}
- {object.type==='trigger'&&<><h3>Gatilho</h3><label>ID<input value={object.triggerId??''} onChange={e=>updateObject(object.id,{triggerId:e.target.value} as any)}/></label></>}
- {object.type==='finish'&&<><h3>Fim da fase</h3><label>Comportamento<select value={object.endingMode??'next-scene'} onChange={e=>updateObject(object.id,{endingMode:e.target.value,targetSceneId:e.target.value==='target-scene'?object.targetSceneId:undefined} as any)}><option value="next-scene">Ir para a próxima cena</option><option value="target-scene">Ir para uma cena específica</option><option value="complete-game">Concluir o jogo</option></select></label>{(object.endingMode??'next-scene')==='target-scene'&&<label>Cena de destino<select value={object.targetSceneId??''} onChange={e=>updateObject(object.id,{targetSceneId:e.target.value||undefined} as any)}><option value="">Selecione...</option>{project.scenes.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}</>}
- <dl><div><dt>Tipo</dt><dd>{object.type}</dd></div><div><dt>Asset</dt><dd>{object.assetId?project.assets.find(a=>a.id===object.assetId)?.name??'Ausente':'Nenhum'}</dd></div>{object.assetId&&project.assets.find(a=>a.id===object.assetId)?.category==='model'&&<div><dt>Prévia 3D</dt><dd>Ainda não disponível</dd></div>}</dl></div>
- :<div className="inspector-section"><h3>Cena selecionada</h3><label>Nome<input value={scene.name} onChange={e=>updateScene(scene.id,{name:e.target.value})}/></label><div className="field-grid"><label>Largura<input type="number" min="320" value={scene.width} onChange={e=>updateScene(scene.id,{width:Number(e.target.value)})}/></label><label>Altura<input type="number" min="180" value={scene.height} onChange={e=>updateScene(scene.id,{height:Number(e.target.value)})}/></label></div><h3>Cenário</h3><label>Encaixe<select value={scene.background.fit} onChange={e=>updateScene(scene.id,{background:{fit:e.target.value as any}})}><option value="cover">Preencher</option><option value="contain">Ajustar</option><option value="stretch">Esticar</option><option value="original">Tamanho original</option></select></label><div className="field-grid">{bf('Posição X %','positionX')}{bf('Posição Y %','positionY')}{bf('Escala','scale','0.05')}{bf('Opacidade editor','editorOpacity','0.05')}</div><button onClick={()=>updateScene(scene.id,{backgroundAssetId:null})} disabled={!scene.backgroundAssetId}>Remover cenário</button></div>}
- <div className={`validation ${errors?'error':warnings?'warning':'ok'}`}><strong>{errors} erro(s) · {warnings} aviso(s) · {infos} info(s)</strong>{validation.issues.slice(0,5).map(i=><span key={`${i.code}-${i.objectId??i.sceneId??i.message}`}>{i.severity==='error'?'⛔':i.severity==='warning'?'⚠️':'ℹ️'} {i.message}</span>)}</div></aside>;
+type NumericObjectKey =
+  | 'initialHealth'
+  | 'initialAttack'
+  | 'initialDefense'
+  | 'patrolLeft'
+  | 'patrolRight'
+  | 'visionDistance'
+  | 'walkSpeed'
+  | 'runSpeed'
+  | 'attackDistance'
+  | 'damage'
+  | 'attackCooldownMs'
+  | 'bossHealth'
+  | 'bossPhaseCount'
+  | 'checkpointOrder'
+  | 'respawnHealth'
+  | 'pickupAmount'
+  | 'respawnDelayMs';
+
+type TransformKey = 'x' | 'y' | 'width' | 'height' | 'rotation';
+type BackgroundNumericKey = 'positionX' | 'positionY' | 'scale' | 'editorOpacity';
+
+export function Inspector() {
+  const {
+    project,
+    selectedSceneId,
+    selectedObjectId,
+    renameProject,
+    updateScene,
+    updateObject,
+  } = useEditorStore();
+
+  const scene = project.scenes.find((item) => item.id === selectedSceneId) ?? project.scenes[0];
+  const object = scene.objects.find((item) => item.id === selectedObjectId);
+  const validation = useMemo(() => validateProject(project), [project]);
+
+  const updateNumericObjectField = (target: SceneObjectBase, key: NumericObjectKey, value: number) => {
+    updateObject(target.id, { [key]: value } as Partial<SceneObjectBase>);
+  };
+
+  const numericField = (target: SceneObjectBase, label: string, key: NumericObjectKey, min?: number) => (
+    <label>
+      {label}
+      <input
+        type="number"
+        min={min}
+        value={target[key] ?? 0}
+        onChange={(event) => updateNumericObjectField(target, key, Number(event.target.value))}
+      />
+    </label>
+  );
+
+  const transformField = (target: SceneObjectBase, label: string, key: TransformKey) => (
+    <label>
+      {label}
+      <input
+        type="number"
+        value={target.transform[key]}
+        onChange={(event) => {
+          const transform: Transform2D = {
+            ...target.transform,
+            [key]: Number(event.target.value),
+          };
+          updateObject(target.id, { transform });
+        }}
+      />
+    </label>
+  );
+
+  const backgroundField = (label: string, key: BackgroundNumericKey, step = '1') => (
+    <label>
+      {label}
+      <input
+        type="number"
+        step={step}
+        value={scene.background[key]}
+        onChange={(event) => {
+          const background: Partial<SceneBackgroundSettings> = { [key]: Number(event.target.value) };
+          updateScene(scene.id, { background });
+        }}
+      />
+    </label>
+  );
+
+  const errors = validation.issues.filter((issue) => issue.severity === 'error').length;
+  const warnings = validation.issues.filter((issue) => issue.severity === 'warning').length;
+  const infos = validation.issues.filter((issue) => issue.severity === 'info').length;
+
+  return (
+    <aside className="panel inspector">
+      <h2>Propriedades</h2>
+      <label>
+        Projeto
+        <input value={project.project.name} onChange={(event) => renameProject(event.target.value)} />
+      </label>
+
+      {object ? (
+        <div className="inspector-section">
+          <h3>{object.name}</h3>
+          <label>
+            Nome
+            <input value={object.name} onChange={(event) => updateObject(object.id, { name: event.target.value })} />
+          </label>
+
+          <div className="field-grid">
+            {transformField(object, 'Posição X', 'x')}
+            {transformField(object, 'Posição Y', 'y')}
+            {transformField(object, 'Largura', 'width')}
+            {transformField(object, 'Altura', 'height')}
+            {transformField(object, 'Rotação', 'rotation')}
+          </div>
+
+          {object.type === 'player-spawn' && (
+            <>
+              <h3>Player</h3>
+              <label>
+                Direção
+                <select
+                  value={object.direction ?? 'right'}
+                  onChange={(event) => updateObject(object.id, { direction: event.target.value as 'left' | 'right' })}
+                >
+                  <option value="left">Esquerda</option>
+                  <option value="right">Direita</option>
+                </select>
+              </label>
+              <div className="field-grid">
+                {numericField(object, 'Vida inicial', 'initialHealth', 0)}
+                {numericField(object, 'Ataque inicial', 'initialAttack', 0)}
+                {numericField(object, 'Defesa inicial', 'initialDefense', 0)}
+              </div>
+            </>
+          )}
+
+          {(object.type === 'platform' || object.type === 'wall') && (
+            <>
+              <h3>Física</h3>
+              <label>
+                Colisão
+                <select
+                  value={object.collisionType ?? 'solid'}
+                  onChange={(event) =>
+                    updateObject(object.id, {
+                      collisionType: event.target.value as 'solid' | 'one-way' | 'none',
+                    })
+                  }
+                >
+                  <option value="solid">Sólida</option>
+                  <option value="one-way">Atravessável</option>
+                  <option value="none">Sem colisão</option>
+                </select>
+              </label>
+            </>
+          )}
+
+          {object.type === 'enemy-cactus' && (
+            <>
+              <h3>Cacto</h3>
+              <label>
+                Direção
+                <select
+                  value={object.direction ?? 'left'}
+                  onChange={(event) => updateObject(object.id, { direction: event.target.value as 'left' | 'right' })}
+                >
+                  <option value="left">Esquerda</option>
+                  <option value="right">Direita</option>
+                </select>
+              </label>
+              <div className="field-grid">
+                {numericField(object, 'Limite esquerdo', 'patrolLeft')}
+                {numericField(object, 'Limite direito', 'patrolRight')}
+                {numericField(object, 'Área de visão', 'visionDistance', 0)}
+                {numericField(object, 'Vel. andando', 'walkSpeed', 0)}
+                {numericField(object, 'Vel. correndo', 'runSpeed', 0)}
+                {numericField(object, 'Dist. ataque', 'attackDistance', 0)}
+                {numericField(object, 'Dano', 'damage', 0)}
+                {numericField(object, 'Intervalo ms', 'attackCooldownMs', 1)}
+              </div>
+            </>
+          )}
+
+          {object.type === 'boss' && (
+            <>
+              <h3>Boss</h3>
+              <div className="field-grid">
+                {numericField(object, 'Vida', 'bossHealth', 1)}
+                {numericField(object, 'Fases', 'bossPhaseCount', 1)}
+                {numericField(object, 'Dano', 'damage', 0)}
+                {numericField(object, 'Intervalo ms', 'attackCooldownMs', 1)}
+              </div>
+            </>
+          )}
+
+          {object.type === 'checkpoint' && (
+            <>
+              <h3>Checkpoint</h3>
+              <div className="field-grid">
+                {numericField(object, 'Ordem', 'checkpointOrder', 1)}
+                {numericField(object, 'Vida ao retornar', 'respawnHealth', 0)}
+              </div>
+            </>
+          )}
+
+          {object.type.startsWith('pickup-') && (
+            <>
+              <h3>Recarga</h3>
+              <div className="field-grid">
+                {numericField(object, 'Quantidade', 'pickupAmount', 1)}
+                {numericField(object, 'Respawn ms', 'respawnDelayMs', 0)}
+              </div>
+            </>
+          )}
+
+          {object.type === 'trigger' && (
+            <>
+              <h3>Gatilho</h3>
+              <label>
+                ID
+                <input
+                  value={object.triggerId ?? ''}
+                  onChange={(event) => updateObject(object.id, { triggerId: event.target.value })}
+                />
+              </label>
+            </>
+          )}
+
+          {object.type === 'finish' && (
+            <>
+              <h3>Fim da fase</h3>
+              <label>
+                Comportamento
+                <select
+                  value={object.endingMode ?? 'next-scene'}
+                  onChange={(event) => {
+                    const endingMode = event.target.value as FinishEndingMode;
+                    updateObject(object.id, {
+                      endingMode,
+                      targetSceneId: endingMode === 'target-scene' ? object.targetSceneId : undefined,
+                    });
+                  }}
+                >
+                  <option value="next-scene">Ir para a próxima cena</option>
+                  <option value="target-scene">Ir para uma cena específica</option>
+                  <option value="complete-game">Concluir o jogo</option>
+                </select>
+              </label>
+              {(object.endingMode ?? 'next-scene') === 'target-scene' && (
+                <label>
+                  Cena de destino
+                  <select
+                    value={object.targetSceneId ?? ''}
+                    onChange={(event) => updateObject(object.id, { targetSceneId: event.target.value || undefined })}
+                  >
+                    <option value="">Selecione...</option>
+                    {project.scenes.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
+
+          <dl>
+            <div><dt>Tipo</dt><dd>{object.type}</dd></div>
+            <div><dt>Asset</dt><dd>{object.assetId ? project.assets.find((asset) => asset.id === object.assetId)?.name ?? 'Ausente' : 'Nenhum'}</dd></div>
+            {object.assetId && project.assets.find((asset) => asset.id === object.assetId)?.category === 'model' && (
+              <div><dt>Prévia 3D</dt><dd>Ainda não disponível</dd></div>
+            )}
+          </dl>
+        </div>
+      ) : (
+        <div className="inspector-section">
+          <h3>Cena selecionada</h3>
+          <label>
+            Nome
+            <input value={scene.name} onChange={(event) => updateScene(scene.id, { name: event.target.value })} />
+          </label>
+          <div className="field-grid">
+            <label>
+              Largura
+              <input type="number" min="320" value={scene.width} onChange={(event) => updateScene(scene.id, { width: Number(event.target.value) })} />
+            </label>
+            <label>
+              Altura
+              <input type="number" min="180" value={scene.height} onChange={(event) => updateScene(scene.id, { height: Number(event.target.value) })} />
+            </label>
+          </div>
+          <h3>Cenário</h3>
+          <label>
+            Encaixe
+            <select
+              value={scene.background.fit}
+              onChange={(event) => updateScene(scene.id, { background: { fit: event.target.value as BackgroundFit } })}
+            >
+              <option value="cover">Preencher</option>
+              <option value="contain">Ajustar</option>
+              <option value="stretch">Esticar</option>
+              <option value="original">Tamanho original</option>
+            </select>
+          </label>
+          <div className="field-grid">
+            {backgroundField('Posição X %', 'positionX')}
+            {backgroundField('Posição Y %', 'positionY')}
+            {backgroundField('Escala', 'scale', '0.05')}
+            {backgroundField('Opacidade editor', 'editorOpacity', '0.05')}
+          </div>
+          <button onClick={() => updateScene(scene.id, { backgroundAssetId: null })} disabled={!scene.backgroundAssetId}>
+            Remover cenário
+          </button>
+        </div>
+      )}
+
+      <div className={`validation ${errors ? 'error' : warnings ? 'warning' : 'ok'}`}>
+        <strong>{errors} erro(s) · {warnings} aviso(s) · {infos} info(s)</strong>
+        {validation.issues.slice(0, 5).map((issue) => (
+          <span key={`${issue.code}-${issue.objectId ?? issue.sceneId ?? issue.message}`}>
+            {issue.severity === 'error' ? '⛔' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'} {issue.message}
+          </span>
+        ))}
+      </div>
+    </aside>
+  );
 }
