@@ -3,6 +3,7 @@ import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import type { ElFuegoProject, ProjectScene, SceneObjectBase, Transform2D } from '../types/project';
 import { calculateFitZoom } from './calculateFitZoom';
+import { EnemyRangeHandles } from './EnemyRangeHandles';
 import { getSelectionIntersection, normalizeRect, pointerToScene } from './selectionGeometry';
 
 const symbols: Record<string, string> = { 'player-spawn': '🔥', finish: '🏁', checkpoint: '⚑', platform: '▬', wall: '▮', 'drop-zone': '⌄', 'no-collision-zone': '◇', 'pickup-health': '♥', 'pickup-attack': '⚔', 'pickup-defense': '◆', 'enemy-cactus': '🌵', boss: '♛', decoration: '◆', obstacle: '▰', trigger: '◎', 'dialogue-zone': '💬', collectible: '✦' };
@@ -42,9 +43,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         setAreaHeight(Math.max(1, area.clientHeight));
-        if (!testMode && selected) {
-          store.setZoom(calculateFitZoom({ availableWidth: area.clientWidth, availableHeight: area.clientHeight, sceneWidth: selected.width, sceneHeight: selected.height }));
-        }
+        if (!testMode && selected) store.setZoom(calculateFitZoom({ availableWidth: area.clientWidth, availableHeight: area.clientHeight, sceneWidth: selected.width, sceneHeight: selected.height }));
       });
     };
     measure();
@@ -114,10 +113,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
   const finish = (event: ReactPointerEvent<HTMLDivElement>, scene: ProjectScene) => {
     if (selectionBox && selectionBox.sceneId === scene.id && event.pointerId === selectionBox.pointerId) {
       const hit = getSelectionIntersection(scene.objects, selectionBox);
-      useEditorStore.setState((state) => {
-        const ids = selectionBox.additive ? Array.from(new Set([...state.selectedObjectIds, ...hit])) : hit;
-        return { selectedObjectIds: ids, selectedObjectId: ids.at(-1) ?? null };
-      });
+      useEditorStore.setState((state) => { const ids = selectionBox.additive ? Array.from(new Set([...state.selectedObjectIds, ...hit])) : hit; return { selectedObjectIds: ids, selectedObjectId: ids.at(-1) ?? null }; });
       setSelectionBox(null); return;
     }
     if (!interaction || interaction.sceneId !== scene.id || event.pointerId !== interaction.pointerId) return;
@@ -140,6 +136,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
           const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
           const backgroundUrl = scene.backgroundAssetId ? backgroundUrls[scene.backgroundAssetId] : undefined;
           const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
+          const selectedEnemy = !testMode && scene.id === store.selectedSceneId && store.selectedObjectIds.length === 1 ? scene.objects.find((object) => object.id === store.selectedObjectId && object.type === 'enemy-cactus') : undefined;
           return <div key={scene.id} className={`scene-canvas sequence-scene ${scene.id === store.selectedSceneId ? 'active-sequence-scene' : ''}`} style={{ width: scene.width * zoom, height: scene.height * zoom }} onPointerDown={(event) => beginSelection(event, scene)} onPointerMove={(event) => move(event, scene)} onPointerUp={(event) => finish(event, scene)} onPointerCancel={(event) => cancel(event, scene)}>
             {backgroundUrl && <img className="scene-background" src={backgroundUrl} alt="" draggable={false} style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, opacity: testMode ? 1 : background.editorOpacity, transform: `scale(${background.scale})` }} />}
             {!testMode && <div className="sequence-scene-label"><span>{sceneIndex + 1}</span><strong>{scene.name}</strong></div>}
@@ -157,6 +154,7 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
                 {primary && <span className="object-size">{store.selectedObjectIds.length > 1 ? `${store.selectedObjectIds.length} objetos` : `${Math.round(object.transform.width)} × ${Math.round(object.transform.height)}`}</span>}
               </div>;
             })}
+            {selectedEnemy && !selectedEnemy.locked && <EnemyRangeHandles scene={scene} object={selectedEnemy as SceneObjectBase<'enemy-cactus'>} zoom={zoom} />}
           </div>;
         })}
       </div>
