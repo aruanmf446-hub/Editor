@@ -16,7 +16,7 @@ function createFallbackSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObj
   const previous = world.player;
   const width = previous.width;
   const height = previous.standingHeight;
-  return { id: `runtime-entry-${scene.id}`, sceneId: scene.id, type: 'player-spawn', name: 'Entrada automática', entryId: 'entrada-automatica', defaultEntry: true, assetId: previous.assetId, animationAssignments: previous.animationAssignments, transform: { x: Math.min(32, Math.max(0, scene.width - width)), y: Math.min(32, Math.max(0, scene.height - height)), z: 0, width, height, scaleX: 1, scaleY: 1, rotation: 0 }, visible: true, locked: false, editorOnly: false, gameOnly: false, direction: previous.direction, initialHealth: previous.maxHealth, initialAttack: previous.attack, initialDefense: previous.defense };
+  return { id: `runtime-entry-${scene.id}`, sceneId: scene.id, type: 'player-spawn', name: 'Entrada automática', entryId: 'entrada-automatica', defaultEntry: true, assetId: previous.assetId, animationAssignments: previous.animationAssignments, transform: { x: Math.min(32, Math.max(0, scene.width - width)), y: Math.min(32, Math.max(0, scene.height - height)), z: 0, width, height, scaleX: 1, scaleY: 1, rotation: 0 }, visible: true, locked: false, editorOnly: false, gameOnly: false, direction: previous.direction, initialHealth: previous.maxHealth, initialLives: previous.maxLives, initialAttack: previous.attack, initialDefense: previous.defense, doubleJumpEnabled: previous.doubleJumpEnabled };
 }
 
 function findSceneSpawn(scene: ProjectScene, world: RuntimeWorld, entryId?: string): SceneObjectBase {
@@ -34,6 +34,8 @@ export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene, entr
   nextPlayer.maxHealth = Math.max(previous.maxHealth, nextPlayer.maxHealth);
   nextPlayer.health = clamp(previous.health, 1, nextPlayer.maxHealth);
   nextPlayer.respawnHealth = nextPlayer.maxHealth;
+  nextPlayer.maxLives = Math.max(previous.maxLives, nextPlayer.maxLives);
+  nextPlayer.lives = previous.lives;
   nextPlayer.attack = previous.attack;
   nextPlayer.defense = previous.defense;
   if (!nextPlayer.assetId) nextPlayer.assetId = previous.assetId;
