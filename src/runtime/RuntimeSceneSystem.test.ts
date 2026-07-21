@@ -182,4 +182,20 @@ describe('RuntimeSceneSystem', () => {
     expect(world.player.velocityX).toBe(0);
     expect(world.player.velocityY).toBe(0);
   });
+
+  it('não permite atravessar o fim de fase enquanto o boss estiver vivo', () => {
+    const spawn = object('last', 'player-spawn', 40, 300, 50, 100);
+    const finish = object('last', 'finish', 100, 300, 80, 100, { endingMode: 'complete-game' });
+    const boss = object('last', 'boss', 300, 250, 140, 160, { bossHealth: 10, bossPhaseCount: 2 });
+    const world = createWorld([scene('last', 0, [spawn, finish, boss])]);
+    world.player.x = 110; world.player.y = 300;
+
+    updateRuntimeFinish(world);
+    expect(world.completed).toBe(false);
+
+    world.enemies[0].health = 0;
+    world.enemies[0].removed = true;
+    updateRuntimeFinish(world);
+    expect(world.completed).toBe(true);
+  });
 });

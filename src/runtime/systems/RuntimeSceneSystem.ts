@@ -136,6 +136,9 @@ export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
 
 export function updateRuntimeFinish(world: RuntimeWorld): void {
   if (world.completed || world.player.mode === 'dead') return;
+  const livingBoss = world.enemies.some((enemy) => enemy.kind === 'boss' && !enemy.removed && enemy.health > 0);
+  if (livingBoss) return;
+
   const finish = world.scene.objects.find((object) =>
     object.type === 'finish'
     && object.visible

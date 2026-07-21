@@ -25,7 +25,7 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   initialHealth?: number; initialAttack?: number; initialDefense?: number;
   animationAssignments?: PlayerAnimationAssignments;
   collisionType?: 'solid' | 'one-way' | 'none'; passThrough?: boolean; visibleInGame?: boolean;
-  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number;
+  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number;
   bossHealth?: number; bossPhaseCount?: number;
   checkpointOrder?: number; respawnHealth?: number;
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
@@ -33,7 +33,7 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   endingMode?: FinishEndingMode; targetSceneId?: string; requiresAllCollectibles?: boolean;
 }
 export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }
-export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; }
+export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; }
 export interface PlatformObject extends SceneObjectBase<'platform'> { collisionType: 'solid' | 'one-way' | 'none'; passThrough: boolean; visibleInGame: boolean; }
 export type KnownSceneObject = PlayerSpawnObject | CactusObject | PlatformObject | SceneObjectBase;
 export interface ProjectScene { id: SceneId; name: string; order: number; width: number; height: number; backgroundAssetId: AssetId | null; background: SceneBackgroundSettings; objects: KnownSceneObject[]; }

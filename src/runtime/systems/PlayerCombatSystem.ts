@@ -105,6 +105,7 @@ export function updatePlayerCombat(world: RuntimeWorld, delta: number): void {
   // Attack input during cooldown is intentionally ignored. Combo buffering is out of scope.
   if (world.input.attackPressed && player.attackCooldownRemaining === 0 && !player.crouching && !player.defending) {
     player.mode = 'attack';
+    player.attackSerial += 1;
     player.attackElapsed = 0;
     player.attackHitbox = null;
   }
