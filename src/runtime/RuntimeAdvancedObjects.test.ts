@@ -88,7 +88,7 @@ function createWorld(objects: SceneObjectBase[]): RuntimeWorld {
     dialogueAdvanceRequested: false,
     lastTriggerId: null,
     playerNoCollision: false,
-    pendingSceneTransitionId: null,
+    pendingSceneTransition: null,
     cameraOverride: null,
     camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false },
@@ -197,9 +197,7 @@ describe('RuntimeAdvancedObjects', () => {
     const world = createWorld([obstacle, dialogue, enemy, trigger]);
     resetRuntimeSceneObjectState(world);
     expect(world.enemies[0].removed).toBe(true);
-
     updateRuntimeAdvancedObjects(world);
-
     expect(world.objectVisibilityOverrides?.[obstacle.id]).toBe(false);
     expect(world.platforms.some((platform) => platform.id === obstacle.id)).toBe(false);
     expect(world.activeDialogue?.lines[0].text).toBe('A porta abriu.');
@@ -208,13 +206,13 @@ describe('RuntimeAdvancedObjects', () => {
     expect(world.variables?.porta).toBe('aberta');
   });
 
-  it('registra transição de cena solicitada pelo gatilho', () => {
+  it('registra cena e entrada solicitadas pelo gatilho', () => {
     const trigger = object('trigger', 80, 280, 200, 160, {
-      triggerActions: [{ id: 'scene', type: 'transition-scene', targetSceneId: 'scene-two' }],
+      triggerActions: [{ id: 'scene', type: 'transition-scene', targetSceneId: 'scene-two', targetEntryId: 'porta-direita' }],
     });
     const world = createWorld([trigger]);
     updateRuntimeAdvancedObjects(world);
-    expect(world.pendingSceneTransitionId).toBe('scene-two');
+    expect(world.pendingSceneTransition).toEqual({ sceneId: 'scene-two', entryId: 'porta-direita' });
   });
 
   it('coleta item uma vez e libera fim que exige todos os colecionáveis', () => {

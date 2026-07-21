@@ -1,11 +1,7 @@
 import type { ElFuegoProject, ProjectScene, SceneObjectBase } from '../types/project';
 import { validateProject } from '../validation/validateProject';
 
-export type RuntimeProjectSnapshot = {
-  project: ElFuegoProject;
-  initialScene: ProjectScene;
-  spawn: SceneObjectBase;
-};
+export type RuntimeProjectSnapshot = { project: ElFuegoProject; initialScene: ProjectScene; spawn: SceneObjectBase };
 
 export function loadRuntimeProject(input: unknown): RuntimeProjectSnapshot {
   const result = validateProject(input);
@@ -14,8 +10,9 @@ export function loadRuntimeProject(input: unknown): RuntimeProjectSnapshot {
     throw new Error(messages.join('\n') || 'Projeto inválido para teste.');
   }
   const project = structuredClone(result.project);
-  const spawnScene = project.scenes.find((scene) => scene.objects.some((object) => object.type === 'player-spawn'));
-  const spawn = spawnScene?.objects.find((object) => object.type === 'player-spawn');
-  if (!spawnScene || !spawn) throw new Error('Spawn global não encontrado.');
-  return { project, initialScene: spawnScene, spawn };
+  const initialScene = [...project.scenes].sort((a, b) => a.order - b.order)[0];
+  const spawns = initialScene?.objects.filter((object) => object.type === 'player-spawn' && object.visible && !object.editorOnly) ?? [];
+  const spawn = spawns.find((object) => object.defaultEntry) ?? spawns[0];
+  if (!initialScene || !spawn) throw new Error('A primeira cena precisa de uma entrada do player.');
+  return { project, initialScene, spawn };
 }

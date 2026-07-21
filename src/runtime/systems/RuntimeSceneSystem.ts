@@ -8,12 +8,8 @@ import { createRuntimePlatforms, type RuntimeWorld } from '../RuntimeWorld';
 import { respawnPlayerSafely } from './CollisionSystem';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-const runtimeObjectBounds = (object: SceneObjectBase) => ({
-  x: object.transform.x,
-  y: object.transform.y,
-  width: object.transform.width,
-  height: object.transform.height,
-});
+const runtimeObjectBounds = (object: SceneObjectBase) => ({ x: object.transform.x, y: object.transform.y, width: object.transform.width, height: object.transform.height });
+type FinishTarget = { scene: ProjectScene; entryId?: string };
 
 function createFallbackSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObjectBase<'player-spawn'> {
   const previous = world.player;
@@ -24,18 +20,11 @@ function createFallbackSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObj
     sceneId: scene.id,
     type: 'player-spawn',
     name: 'Entrada automática',
+    entryId: 'entrada-automatica',
+    defaultEntry: true,
     assetId: previous.assetId,
     animationAssignments: previous.animationAssignments,
-    transform: {
-      x: Math.min(32, Math.max(0, scene.width - width)),
-      y: Math.min(32, Math.max(0, scene.height - height)),
-      z: 0,
-      width,
-      height,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-    },
+    transform: { x: Math.min(32, Math.max(0, scene.width - width)), y: Math.min(32, Math.max(0, scene.height - height)), z: 0, width, height, scaleX: 1, scaleY: 1, rotation: 0 },
     visible: true,
     locked: false,
     editorOnly: false,
@@ -47,14 +36,19 @@ function createFallbackSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObj
   };
 }
 
-function findSceneSpawn(scene: ProjectScene, world: RuntimeWorld): SceneObjectBase {
-  return scene.objects.find((object) => object.type === 'player-spawn' && object.visible && !object.editorOnly)
-    ?? createFallbackSpawn(scene, world);
+function findSceneSpawn(scene: ProjectScene, world: RuntimeWorld, entryId?: string): SceneObjectBase {
+  const spawns = scene.objects.filter((object) => object.type === 'player-spawn' && object.visible && !object.editorOnly);
+  const normalizedEntry = entryId?.trim();
+  if (normalizedEntry) {
+    const exact = spawns.find((spawn) => spawn.entryId?.trim() === normalizedEntry);
+    if (exact) return exact;
+  }
+  return spawns.find((spawn) => spawn.defaultEntry) ?? spawns[0] ?? createFallbackSpawn(scene, world);
 }
 
-export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene): void {
+export function enterRuntimeScene(world: RuntimeWorld, scene: ProjectScene, entryId?: string): void {
   const previous = world.player;
-  const spawn = findSceneSpawn(scene, world);
+  const spawn = findSceneSpawn(scene, world, entryId);
   const nextPlayer = createRuntimePlayer(spawn);
   nextPlayer.maxHealth = Math.max(previous.maxHealth, nextPlayer.maxHealth);
   nextPlayer.health = clamp(previous.health, 1, nextPlayer.maxHealth);
@@ -88,17 +82,17 @@ function completeRuntime(world: RuntimeWorld): void {
   world.player.velocityY = 0;
 }
 
-function resolveFinishTarget(world: RuntimeWorld, finish: SceneObjectBase): ProjectScene | null {
+function resolveFinishTarget(world: RuntimeWorld, finish: SceneObjectBase): FinishTarget | null {
   const mode = finish.endingMode ?? 'next-scene';
   if (mode === 'complete-game') return null;
   if (mode === 'target-scene') {
-    return finish.targetSceneId
-      ? world.project.scenes.find((scene) => scene.id === finish.targetSceneId) ?? null
-      : null;
+    const scene = finish.targetSceneId ? world.project.scenes.find((candidate) => candidate.id === finish.targetSceneId) : undefined;
+    return scene ? { scene, entryId: finish.targetEntryId?.trim() || undefined } : null;
   }
   const ordered = [...world.project.scenes].sort((a, b) => a.order - b.order);
   const currentIndex = ordered.findIndex((scene) => scene.id === world.scene.id);
-  return currentIndex >= 0 ? ordered[currentIndex + 1] ?? null : null;
+  const scene = currentIndex >= 0 ? ordered[currentIndex + 1] : undefined;
+  return scene ? { scene, entryId: finish.targetEntryId?.trim() || undefined } : null;
 }
 
 export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
@@ -110,7 +104,6 @@ export function updateRuntimeCheckpoints(world: RuntimeWorld): void {
   const order = checkpoint.checkpointOrder ?? 1;
   if (world.activeCheckpoint?.sceneId === world.scene.id && world.activeCheckpoint.order > order) return;
   if (world.activeCheckpoint?.objectId === checkpoint.id) return;
-
   const maxX = Math.max(0, world.scene.width - world.player.width);
   const maxY = Math.max(0, world.scene.height - world.player.standingHeight);
   const x = clamp(checkpoint.transform.x + (checkpoint.transform.width - world.player.width) / 2, 0, maxX);
@@ -126,17 +119,10 @@ export function updateRuntimeFinish(world: RuntimeWorld): void {
   if (world.completed || world.player.mode === 'dead') return;
   const livingBoss = world.enemies.some((enemy) => enemy.kind === 'boss' && !enemy.removed && enemy.health > 0);
   if (livingBoss) return;
-  const finish = world.scene.objects.find((object) =>
-    object.type === 'finish'
-    && isRuntimeObjectVisible(world, object)
-    && intersects(world.player, runtimeObjectBounds(object))
-  );
+  const finish = world.scene.objects.find((object) => object.type === 'finish' && isRuntimeObjectVisible(world, object) && intersects(world.player, runtimeObjectBounds(object)));
   if (!finish) return;
   if (finish.requiresAllCollectibles && (world.collectiblesRemaining ?? 0) > 0) return;
   const target = resolveFinishTarget(world, finish);
-  if (!target) {
-    completeRuntime(world);
-    return;
-  }
-  enterRuntimeScene(world, target);
+  if (!target) { completeRuntime(world); return; }
+  enterRuntimeScene(world, target.scene, target.entryId);
 }

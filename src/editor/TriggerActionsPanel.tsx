@@ -28,7 +28,6 @@ export function TriggerActionsPanel() {
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const selectedObjectId = useEditorStore((state) => state.selectedObjectId);
   const updateObject = useEditorStore((state) => state.updateObject);
-
   const scene = project.scenes.find((candidate) => candidate.id === selectedSceneId) ?? project.scenes[0];
   const trigger = useMemo(() => scene.objects.find((object) => object.id === selectedObjectId && object.type === 'trigger'), [scene, selectedObjectId]);
   if (!trigger) return null;
@@ -52,44 +51,22 @@ export function TriggerActionsPanel() {
   return <aside className="panel trigger-actions-panel">
     <h2>Ações do gatilho</h2>
     <p className="panel-hint">As ações são executadas na ordem quando o player entra na área.</p>
-    {actions.map((action, index) => <fieldset key={action.id} className="compact-config-card">
-      <legend>Ação {index + 1}</legend>
-      <label>Tipo
-        <select value={action.type} onChange={(event) => replace(index, defaultAction(event.target.value as TriggerAction['type'], genericTargets[0]?.id, project.scenes[0]?.id))}>
-          {Object.entries(actionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </label>
-
-      {action.type === 'set-object-visible' && <>
-        <label>Objeto<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(genericTargets)}</select></label>
-        <label className="checkbox-field"><input type="checkbox" checked={action.visible} onChange={(event) => replace(index, { ...action, visible: event.target.checked })} />Deixar visível</label>
-      </>}
-      {action.type === 'set-collision-enabled' && <>
-        <label>Colisor<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(collisionTargets)}</select></label>
-        <label className="checkbox-field"><input type="checkbox" checked={action.enabled} onChange={(event) => replace(index, { ...action, enabled: event.target.checked })} />Colisão ativa</label>
-      </>}
-      {action.type === 'activate-enemy' && <>
-        <label>Inimigo<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(enemyTargets)}</select></label>
-        <label className="checkbox-field"><input type="checkbox" checked={action.active} onChange={(event) => replace(index, { ...action, active: event.target.checked })} />Inimigo ativo</label>
-      </>}
-      {action.type === 'start-dialogue' && <label>Diálogo<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(dialogueTargets)}</select></label>}
-      {action.type === 'set-camera' && <div className="field-grid">
-        <label>Câmera X<input type="number" value={action.x} onChange={(event) => replace(index, { ...action, x: Number(event.target.value) || 0 })} /></label>
-        <label>Câmera Y<input type="number" value={action.y} onChange={(event) => replace(index, { ...action, y: Number(event.target.value) || 0 })} /></label>
-        <label>Duração ms<input type="number" min="0" value={action.durationMs} onChange={(event) => replace(index, { ...action, durationMs: Math.max(0, Number(event.target.value) || 0) })} /></label>
-      </div>}
-      {action.type === 'transition-scene' && <label>Cena<select value={action.targetSceneId} onChange={(event) => replace(index, { ...action, targetSceneId: event.target.value })}><option value="">Selecione...</option>{project.scenes.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>}
-      {action.type === 'set-variable' && <div className="field-grid">
-        <label>Variável<input value={action.key} onChange={(event) => replace(index, { ...action, key: event.target.value })} /></label>
-        <label>Valor<input value={String(action.value)} onChange={(event) => replace(index, { ...action, value: event.target.value })} /></label>
-      </div>}
-
-      <div className="inline-actions">
-        <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>Subir</button>
-        <button type="button" disabled={index === actions.length - 1} onClick={() => move(index, 1)}>Descer</button>
-        <button type="button" onClick={() => save(actions.filter((_, current) => current !== index))}>Remover</button>
-      </div>
-    </fieldset>)}
+    {actions.map((action, index) => {
+      const targetScene = action.type === 'transition-scene' ? project.scenes.find((candidate) => candidate.id === action.targetSceneId) : undefined;
+      const entries = targetScene?.objects.filter((object) => object.type === 'player-spawn') ?? [];
+      return <fieldset key={action.id} className="compact-config-card">
+        <legend>Ação {index + 1}</legend>
+        <label>Tipo<select value={action.type} onChange={(event) => replace(index, defaultAction(event.target.value as TriggerAction['type'], genericTargets[0]?.id, project.scenes[0]?.id))}>{Object.entries(actionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        {action.type === 'set-object-visible' && <><label>Objeto<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(genericTargets)}</select></label><label className="checkbox-field"><input type="checkbox" checked={action.visible} onChange={(event) => replace(index, { ...action, visible: event.target.checked })} />Deixar visível</label></>}
+        {action.type === 'set-collision-enabled' && <><label>Colisor<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(collisionTargets)}</select></label><label className="checkbox-field"><input type="checkbox" checked={action.enabled} onChange={(event) => replace(index, { ...action, enabled: event.target.checked })} />Colisão ativa</label></>}
+        {action.type === 'activate-enemy' && <><label>Inimigo<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(enemyTargets)}</select></label><label className="checkbox-field"><input type="checkbox" checked={action.active} onChange={(event) => replace(index, { ...action, active: event.target.checked })} />Inimigo ativo</label></>}
+        {action.type === 'start-dialogue' && <label>Diálogo<select value={action.targetObjectId} onChange={(event) => replace(index, { ...action, targetObjectId: event.target.value })}><option value="">Selecione...</option>{objectOptions(dialogueTargets)}</select></label>}
+        {action.type === 'set-camera' && <div className="field-grid"><label>Câmera X<input type="number" value={action.x} onChange={(event) => replace(index, { ...action, x: Number(event.target.value) || 0 })} /></label><label>Câmera Y<input type="number" value={action.y} onChange={(event) => replace(index, { ...action, y: Number(event.target.value) || 0 })} /></label><label>Duração ms<input type="number" min="0" value={action.durationMs} onChange={(event) => replace(index, { ...action, durationMs: Math.max(0, Number(event.target.value) || 0) })} /></label></div>}
+        {action.type === 'transition-scene' && <><label>Cena<select value={action.targetSceneId} onChange={(event) => replace(index, { ...action, targetSceneId: event.target.value, targetEntryId: undefined })}><option value="">Selecione...</option>{project.scenes.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label><label>Entrada<select value={action.targetEntryId ?? ''} onChange={(event) => replace(index, { ...action, targetEntryId: event.target.value || undefined })}><option value="">Entrada padrão</option>{entries.map((entry) => <option key={entry.id} value={entry.entryId ?? ''}>{entry.entryId || entry.name}</option>)}</select></label></>}
+        {action.type === 'set-variable' && <div className="field-grid"><label>Variável<input value={action.key} onChange={(event) => replace(index, { ...action, key: event.target.value })} /></label><label>Valor<input value={String(action.value)} onChange={(event) => replace(index, { ...action, value: event.target.value })} /></label></div>}
+        <div className="inline-actions"><button type="button" disabled={index === 0} onClick={() => move(index, -1)}>Subir</button><button type="button" disabled={index === actions.length - 1} onClick={() => move(index, 1)}>Descer</button><button type="button" onClick={() => save(actions.filter((_, current) => current !== index))}>Remover</button></div>
+      </fieldset>;
+    })}
     <button type="button" onClick={() => save([...actions, defaultAction('set-variable')])}>Adicionar ação</button>
   </aside>;
 }

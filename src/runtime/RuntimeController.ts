@@ -47,7 +47,7 @@ export class RuntimeController {
       dialogueAdvanceRequested: false,
       lastTriggerId: null,
       playerNoCollision: false,
-      pendingSceneTransitionId: null,
+      pendingSceneTransition: null,
       cameraOverride: null,
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
       input: this.input.snapshot(), paused: false, completed: false,
@@ -76,7 +76,6 @@ export class RuntimeController {
   destroy(): void { if (!this.disposed) { this.disposed = true; this.clearAccumulator(); this.loop.stop(); this.input.stop(); } }
 
   private clearAccumulator(): void { this.accumulator = 0; this.world.accumulator = 0; }
-
   private frame = (frame: RuntimeFrame) => {
     if (this.disposed || this.world.paused) return;
     this.accumulator += frame.delta;
@@ -104,6 +103,5 @@ export class RuntimeController {
     this.renderTimer += frame.delta;
     if (this.renderTimer >= 1 / 30) { this.renderTimer = 0; this.emit(frame.fps); }
   };
-
   private emit(fps: number): void { if (!this.disposed) this.options.onRender({ world: this.world, fps }); }
 }

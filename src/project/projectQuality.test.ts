@@ -2,16 +2,21 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { calculateFitZoom } from '../editor/calculateFitZoom';
 import { exportProjectArchive, importProjectArchive } from '../persistence/projectArchive';
+import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType } from '../types/project';
 import { validateProject } from '../validation/validateProject';
 import { createEmptyProject, createEmptyScene } from './projectFactory';
 import { DEFAULT_BACKGROUND_SETTINGS, migrateProject } from './migrateProject';
-import type { ElFuegoProject, ProjectScene, SceneObjectBase, SceneObjectType } from '../types/project';
 
 const transform = { x: 20, y: 20, z: 0, width: 80, height: 120, scaleX: 1, scaleY: 1, rotation: 0 };
 const makeObject = (sceneId: string, type: SceneObjectType, id: string = crypto.randomUUID(), patch: Partial<SceneObjectBase> = {}): SceneObjectBase => ({
   id, sceneId, type, name: type, transform: { ...transform }, visible: true, locked: false, editorOnly: false, gameOnly: false, ...patch,
 });
-const projectWithSpawn = (): ElFuegoProject => { const project=createEmptyProject('Teste');const scene=project.scenes[0];scene.objects.push(makeObject(scene.id,'player-spawn'));return project; };
+const projectWithSpawn = (): ElFuegoProject => {
+  const project = createEmptyProject('Teste');
+  const scene = project.scenes[0];
+  scene.objects.push(makeObject(scene.id, 'player-spawn', undefined, { entryId: 'principal', defaultEntry: true }));
+  return project;
+};
 const codes = (project: unknown) => validateProject(project).issues.map((issue) => issue.code);
 
 describe('migração de projetos antigos', () => {
@@ -23,7 +28,7 @@ describe('migração de projetos antigos', () => {
 describe('validação editorial', () => {
   it('detecta IDs duplicados e assets ausentes', () => {const project=projectWithSpawn(),scene=project.scenes[0],duplicateId=scene.objects[0].id;scene.objects.push(makeObject(scene.id,'decoration',duplicateId,{assetId:'asset-ausente'}));expect(codes(project)).toEqual(expect.arrayContaining(['DUPLICATE_ID','MISSING_ASSET']));});
   it('detecta todas as relações inválidas do cacto', () => {const project=projectWithSpawn(),scene=project.scenes[0];scene.objects.push(makeObject(scene.id,'enemy-cactus',undefined,{patrolLeft:500,patrolRight:300,walkSpeed:200,runSpeed:100,visionDistance:100,attackDistance:150,attackCooldownMs:0}));expect(codes(project)).toEqual(expect.arrayContaining(['CACTUS_PATROL_ORDER','CACTUS_SPEED_ORDER','CACTUS_ATTACK_VISION','CACTUS_COOLDOWN']));});
-  it('detecta múltiplos spawns globais', () => {const project=projectWithSpawn();project.scenes[0].objects.push(makeObject(project.scenes[0].id,'player-spawn'));expect(codes(project)).toContain('MULTIPLE_GLOBAL_SPAWNS');});
+  it('aceita múltiplas entradas e detecta identificadores duplicados', () => {const project=projectWithSpawn();const scene=project.scenes[0];scene.objects.push(makeObject(scene.id,'player-spawn',undefined,{entryId:'secundaria'}));expect(codes(project)).not.toContain('MULTIPLE_GLOBAL_SPAWNS');scene.objects[1].entryId='principal';expect(codes(project)).toContain('DUPLICATE_ENTRY_ID');});
   it('valida os modos explícitos de encerramento', () => {const project=projectWithSpawn(),scene=project.scenes[0];scene.objects.push(makeObject(scene.id,'finish',undefined,{endingMode:'next-scene'}));expect(codes(project)).toContain('LAST_SCENE_WITHOUT_ENDING');scene.objects[1].endingMode='complete-game';expect(codes(project)).not.toContain('LAST_SCENE_WITHOUT_ENDING');scene.objects[1].endingMode='target-scene';scene.objects[1].targetSceneId=undefined;expect(codes(project)).toContain('FINISH_TARGET_REQUIRED');});
   it('detecta ciclo em componente desconectado', () => {const project=projectWithSpawn();project.scenes[0].objects.push(makeObject(project.scenes[0].id,'finish',undefined,{endingMode:'complete-game'}));const third=createEmptyScene(2),fourth=createEmptyScene(3);project.scenes.push(third,fourth);third.objects.push(makeObject(third.id,'finish',undefined,{endingMode:'target-scene',targetSceneId:fourth.id}));fourth.objects.push(makeObject(fourth.id,'finish',undefined,{endingMode:'target-scene',targetSceneId:third.id}));const result=validateProject(project);expect(result.issues.some(issue=>issue.code==='SCENE_TRANSITION_CYCLE')).toBe(true);expect(result.issues.some(issue=>issue.code==='UNREACHABLE_SCENE'&&issue.sceneId===third.id)).toBe(true);expect(result.issues.some(issue=>issue.code==='SCENE_CYCLE_WITHOUT_EXIT')).toBe(true);});
 });
