@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadCampaignProgress, saveCampaignProgress } from '../persistence/campaignProgressRepository';
+import { campaignLevels } from '../project/campaign';
+import { loadCampaignProgress, resetCampaignProgress, saveCampaignProgress } from '../persistence/campaignProgressRepository';
 import { useAssetStore } from '../state/assetStore';
 import { useEditorStore } from '../state/editorStore';
 import type { CampaignProgress } from '../types/project';
@@ -17,14 +18,17 @@ import { RuntimePlayerModel, type RuntimePlayerModelStatus } from './rendering/R
 
 type Props = { onExit: () => void };
 type RuntimeLoadResult = ReturnType<typeof loadRuntimeProject> | { error: string } | { loading: true };
+type RuntimeScreen = 'campaign' | 'playing';
 
 const pickupIcon: Record<RuntimePickupKind, string> = { health: '♥', attack: '⚔', defense: '◆' };
 const hiddenRuntimeTypes = new Set(['player-spawn', 'enemy-cactus', 'boss', 'drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone', 'collectible']);
 const debugZoneTypes = new Set(['drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone']);
+const formatTime = (elapsedMs: number) => `${Math.floor(elapsedMs / 60000)}:${String(Math.floor(elapsedMs / 1000) % 60).padStart(2, '0')}`;
 
 export function RuntimeGame({ onExit }: Props) {
   const sourceProject = useEditorStore((state) => state.project);
   const assets = useAssetStore((state) => state.assets);
+  const levels = useMemo(() => campaignLevels(sourceProject.campaign), [sourceProject.campaign]);
   const viewportRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<RuntimeController | null>(null);
   const [view, setView] = useState<RuntimeControllerSnapshot | null>(null);
@@ -33,6 +37,9 @@ export function RuntimeGame({ onExit }: Props) {
   const [playerModelStatus, setPlayerModelStatus] = useState<RuntimePlayerModelStatus>('loading');
   const [enemyModelReadyIds, setEnemyModelReadyIds] = useState<ReadonlySet<string>>(() => new Set());
   const [campaignProgress, setCampaignProgress] = useState<CampaignProgress | null | undefined>(undefined);
+  const [screen, setScreen] = useState<RuntimeScreen>(levels.length ? 'campaign' : 'playing');
+  const [requestedLevelId, setRequestedLevelId] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,11 +56,12 @@ export function RuntimeGame({ onExit }: Props) {
     void saveCampaignProgress(progress).catch((error) => console.error('[campaign-progress] falha ao salvar progresso', error));
   }, []);
 
+  const selectedLevelId = requestedLevelId ?? campaignProgress?.lastLevelId ?? levels[0]?.id ?? null;
   const loadResult = useMemo<RuntimeLoadResult>(() => {
     if (campaignProgress === undefined) return { loading: true };
-    try { return loadRuntimeProject(sourceProject, campaignProgress?.lastLevelId); }
+    try { return loadRuntimeProject(sourceProject, selectedLevelId); }
     catch (reason) { return { error: reason instanceof Error ? reason.message : 'Projeto inválido.' }; }
-  }, [campaignProgress, sourceProject]);
+  }, [campaignProgress, selectedLevelId, sourceProject]);
 
   const urls = useMemo(() => {
     const map: Record<string, string> = {};
@@ -65,8 +73,10 @@ export function RuntimeGame({ onExit }: Props) {
   useEffect(() => () => Object.values(urls).forEach(URL.revokeObjectURL), [urls]);
 
   useEffect(() => {
-    if ('error' in loadResult || 'loading' in loadResult) return;
+    if (screen !== 'playing' || 'error' in loadResult || 'loading' in loadResult) return;
     let disposed = false;
+    setView(null);
+    setPauseReason(null);
     const controller = new RuntimeController({
       snapshot: loadResult,
       progress: campaignProgress,
@@ -75,10 +85,7 @@ export function RuntimeGame({ onExit }: Props) {
     });
     controllerRef.current = controller;
     controller.start();
-    const onBlur = () => {
-      controller.pause('blur');
-      setPauseReason(controller.getPauseReason());
-    };
+    const onBlur = () => { controller.pause('blur'); setPauseReason(controller.getPauseReason()); };
     window.addEventListener('blur', onBlur);
     return () => {
       disposed = true;
@@ -86,7 +93,7 @@ export function RuntimeGame({ onExit }: Props) {
       controller.destroy();
       if (controllerRef.current === controller) controllerRef.current = null;
     };
-  }, [campaignProgress, loadResult, persistProgress]);
+  }, [campaignProgress, loadResult, persistProgress, screen, sessionKey]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -102,55 +109,71 @@ export function RuntimeGame({ onExit }: Props) {
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || 'error' in loadResult || 'loading' in loadResult) return;
+    if (!viewport || screen !== 'playing' || 'error' in loadResult || 'loading' in loadResult) return;
     const update = () => controllerRef.current?.resize(viewport.clientWidth, viewport.clientHeight);
     update();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     observer?.observe(viewport);
     return () => observer?.disconnect();
-  }, [loadResult]);
+  }, [loadResult, screen]);
 
-  if ('loading' in loadResult) return <section className="runtime-error"><h2>Carregando campanha...</h2></section>;
+  const startLevel = (levelId: string) => {
+    setRequestedLevelId(levelId);
+    setScreen('playing');
+    setSessionKey((value) => value + 1);
+  };
+
+  const returnToCampaign = () => {
+    controllerRef.current?.destroy();
+    setView(null);
+    void loadCampaignProgress(sourceProject).then((progress) => {
+      setCampaignProgress(progress);
+      setScreen(levels.length ? 'campaign' : 'playing');
+    });
+  };
+
+  const resetProgress = () => {
+    void resetCampaignProgress(sourceProject).then((progress) => {
+      setCampaignProgress(progress);
+      setRequestedLevelId(levels[0]?.id ?? null);
+    });
+  };
+
+  if (campaignProgress === undefined) return <section className="runtime-error"><h2>Carregando campanha...</h2></section>;
+
+  if (screen === 'campaign' && levels.length) {
+    const unlocked = new Set(campaignProgress?.unlockedLevelIds ?? [levels[0].id]);
+    const completed = new Set(campaignProgress?.completedLevelIds ?? []);
+    return <section className="runtime-campaign-screen">
+      <header><div><p className="eyebrow">Modo história</p><h2>El Fuego</h2><p>Escolha uma fase liberada ou continue de onde parou.</p></div><button type="button" onClick={onExit}>Voltar ao editor</button></header>
+      <div className="runtime-campaign-progress"><strong>{completed.size}/{levels.length} fases concluídas</strong><span>{campaignProgress?.collectedObjectIds.length ?? 0} colecionáveis únicos</span></div>
+      <div className="runtime-level-grid">{levels.map((level, index) => {
+        const isUnlocked = index === 0 || unlocked.has(level.id);
+        const isCompleted = completed.has(level.id);
+        const result = campaignProgress?.bestResults[level.id];
+        const isLast = campaignProgress?.lastLevelId === level.id;
+        return <button type="button" key={level.id} className={`runtime-level-card${isCompleted ? ' completed' : ''}${isLast ? ' current' : ''}`} disabled={!isUnlocked} onClick={() => startLevel(level.id)}>
+          <span>Fase {String(index + 1).padStart(2, '0')}</span><strong>{level.name}</strong>
+          <small>{!isUnlocked ? 'Bloqueada' : isCompleted ? 'Concluída' : isLast ? 'Continuar' : 'Disponível'}</small>
+          {result && <small>Melhor tempo {formatTime(result.elapsedMs)} · {result.deaths} mortes</small>}
+        </button>;
+      })}</div>
+      <footer><button type="button" onClick={() => startLevel(campaignProgress?.lastLevelId ?? levels[0].id)}>Continuar campanha</button><button type="button" onClick={resetProgress}>Reiniciar progresso</button></footer>
+    </section>;
+  }
+
+  if ('loading' in loadResult) return <section className="runtime-error"><h2>Carregando fase...</h2></section>;
   if ('error' in loadResult) return <section className="runtime-error"><h2>Não foi possível iniciar o teste</h2><pre>{loadResult.error}</pre><button onClick={onExit}>Voltar ao editor</button></section>;
 
   const fallbackPickupMemory = {};
   const fallbackWorld: RuntimeWorld = {
-    project: loadResult.project,
-    scene: loadResult.initialScene,
-    sceneRevision: 0,
-    currentLevelId: loadResult.levelId,
-    campaignProgress,
-    campaignProgressRevision: 0,
-    campaignElapsed: 0,
-    campaignDeaths: 0,
-    player: createRuntimePlayer(loadResult.spawn),
-    enemies: createRuntimeEnemies(loadResult.initialScene),
-    pickups: createRuntimePickups(loadResult.initialScene, fallbackPickupMemory),
-    pickupMemory: fallbackPickupMemory,
-    platforms: createRuntimePlatforms(loadResult.initialScene),
-    activeCheckpoint: null,
-    collectedObjectIds: {},
-    triggeredObjectIds: {},
-    activeTriggerContacts: {},
-    completedDialogueIds: {},
-    objectVisibilityOverrides: {},
-    collisionEnabledOverrides: {},
-    variables: {},
+    project: loadResult.project, scene: loadResult.initialScene, sceneRevision: 0, currentLevelId: loadResult.levelId,
+    campaignProgress, campaignProgressRevision: 0, campaignElapsed: 0, campaignDeaths: 0,
+    player: createRuntimePlayer(loadResult.spawn), enemies: createRuntimeEnemies(loadResult.initialScene), pickups: createRuntimePickups(loadResult.initialScene, fallbackPickupMemory), pickupMemory: fallbackPickupMemory,
+    platforms: createRuntimePlatforms(loadResult.initialScene), activeCheckpoint: null, collectedObjectIds: {}, collectibleTotals: campaignProgress?.collectibleTotals ?? {}, triggeredObjectIds: {}, activeTriggerContacts: {}, completedDialogueIds: {}, objectVisibilityOverrides: {}, collisionEnabledOverrides: {}, variables: {},
     collectiblesRemaining: loadResult.initialScene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly).length,
-    activeDialogue: null,
-    dialogueAdvanceRequested: false,
-    lastTriggerId: null,
-    playerNoCollision: false,
-    pendingSceneTransition: null,
-    cameraOverride: null,
-    camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
-    input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
-    paused: false,
-    completed: false,
-    physicsSteps: 0,
-    accumulator: 0,
-    droppedPhysicsTime: 0,
-    respawnFailure: false,
+    activeDialogue: null, dialogueAdvanceRequested: false, lastTriggerId: null, playerNoCollision: false, pendingSceneTransition: null, cameraOverride: null,
+    camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false,
   };
   const world = view?.world ?? fallbackWorld;
   const { scene, player, camera } = world;
@@ -161,6 +184,9 @@ export function RuntimeGame({ onExit }: Props) {
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
   const collected = world.collectedObjectIds ?? {};
+  const currentIndex = levels.findIndex((level) => level.id === world.currentLevelId);
+  const nextLevel = currentIndex >= 0 ? levels[currentIndex + 1] : undefined;
+  const collectedThisRun = Object.keys(collected).length;
 
   const togglePause = () => {
     const controller = controllerRef.current;
@@ -170,7 +196,7 @@ export function RuntimeGame({ onExit }: Props) {
   };
 
   return <section className="runtime-game">
-    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}{(world.collectiblesRemaining ?? 0) > 0 && <span>Coletáveis {world.collectiblesRemaining}</span>}{world.playerNoCollision && <span>Sem colisão</span>}{world.lastTriggerId && <span>Gatilho {world.lastTriggerId}</span>}{activeBoss && <span>Boss {activeBoss.health}/{activeBoss.maxHealth} · Fase {activeBoss.phase}/{activeBoss.phaseCount}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
+    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}{(world.collectiblesRemaining ?? 0) > 0 && <span>Coletáveis {world.collectiblesRemaining}</span>}{world.playerNoCollision && <span>Sem colisão</span>}{world.lastTriggerId && <span>Gatilho {world.lastTriggerId}</span>}{activeBoss && <span>Boss {activeBoss.health}/{activeBoss.maxHealth} · Fase {activeBoss.phase}/{activeBoss.phaseCount}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={returnToCampaign}>Fases</button><button onClick={onExit}>Sair</button></div>
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
@@ -186,14 +212,10 @@ export function RuntimeGame({ onExit }: Props) {
       </div>
       <RuntimeEnemyModels key={`enemy-models-${world.sceneRevision}`} world={world} onReadyIdsChange={setEnemyModelReadyIds} />
       <RuntimePlayerModel key={`${world.sceneRevision}-${player.assetId ?? 'sem-modelo'}`} assetId={player.assetId} animationAssignments={player.animationAssignments} world={world} onStatusChange={setPlayerModelStatus} />
-      {activeDialogue && activeLine && <div className={`runtime-dialogue${activeDialogue.contactOnly ? ' runtime-dialogue--notice' : ''}`} role={activeDialogue.contactOnly ? 'status' : 'dialog'} aria-live="polite">
-        {activeLine.portraitAssetId && urls[activeLine.portraitAssetId] && <img src={urls[activeLine.portraitAssetId]} alt="" />}
-        <div>{activeLine.speaker && <strong>{activeLine.speaker}</strong>}<p>{activeLine.text}</p></div>
-        {!activeDialogue.contactOnly && (activeDialogue.advanceMode === 'manual' || activeDialogue.advanceMode === 'both') && <button type="button" onClick={() => controllerRef.current?.advanceDialogue()}>{activeDialogue.lineIndex >= activeDialogue.lines.length - 1 ? 'Fechar' : 'Continuar'}</button>}
-      </div>}
+      {activeDialogue && activeLine && <div className={`runtime-dialogue${activeDialogue.contactOnly ? ' runtime-dialogue--notice' : ''}`} role={activeDialogue.contactOnly ? 'status' : 'dialog'} aria-live="polite">{activeLine.portraitAssetId && urls[activeLine.portraitAssetId] && <img src={urls[activeLine.portraitAssetId]} alt="" />}<div>{activeLine.speaker && <strong>{activeLine.speaker}</strong>}<p>{activeLine.text}</p></div>{!activeDialogue.contactOnly && (activeDialogue.advanceMode === 'manual' || activeDialogue.advanceMode === 'both') && <button type="button" onClick={() => controllerRef.current?.advanceDialogue()}>{activeDialogue.lineIndex >= activeDialogue.lines.length - 1 ? 'Fechar' : 'Continuar'}</button>}</div>}
     </div>
-    {world.completed && <div className="runtime-pause runtime-complete"><h2>Jogo concluído</h2><p>{scene.name} finalizada.</p><button onClick={onExit}>Voltar ao editor</button></div>}
-    {!world.completed && pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}
+    {world.completed && <div className="runtime-pause runtime-complete"><p className="eyebrow">Fase concluída</p><h2>{levels[currentIndex]?.name ?? scene.name}</h2><div className="runtime-result-grid"><span><strong>{formatTime(Math.round((world.campaignElapsed ?? 0) * 1000))}</strong>Tempo</span><span><strong>{world.campaignDeaths ?? 0}</strong>Mortes</span><span><strong>{collectedThisRun}</strong>Colecionáveis</span><span><strong>{levels.length ? `${Math.max(0, currentIndex + 1)}/${levels.length}` : '1/1'}</strong>Progresso</span></div><div className="button-grid"><button onClick={() => { setSessionKey((value) => value + 1); setView(null); }}>Repetir fase</button>{nextLevel && <button onClick={() => startLevel(nextLevel.id)}>Continuar</button>}<button onClick={returnToCampaign}>Selecionar fase</button><button onClick={onExit}>Voltar ao editor</button></div></div>}
+    {!world.completed && pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={returnToCampaign}>Selecionar fase</button><button onClick={onExit}>Sair do teste</button></div>}
     {debug && <RuntimeDebugOverlay fps={view?.fps ?? 0} world={world} />}
   </section>;
 }
