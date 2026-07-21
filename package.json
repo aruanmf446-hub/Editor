@@ -1,7 +1,7 @@
 {
   "name": "el-fuego-studio",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,8 @@
     "react": "latest",
     "react-dom": "latest",
     "vite": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "zustand": "latest"
   },
   "devDependencies": {
     "@eslint/js": "latest",
