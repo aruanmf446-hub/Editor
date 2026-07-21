@@ -60,11 +60,16 @@ describe('player combat phase 3', () => {
     expect(receivePlayerDamage(state, 2, 200)).toBe('ignored');
   });
 
-  it('morte espera, respawna com a vida configurada e invulnerabilidade', () => {
-    const state = world(); state.player.health = 1; state.player.respawnHealth = 2;
-    expect(receivePlayerDamage(state, 5, 200)).toBe('killed'); expect(state.player.mode).toBe('dead');
+  it('encerra o teste ao perder toda a vida', () => {
+    const state = world(); state.player.health = 1;
+    expect(receivePlayerDamage(state, 5, 200)).toBe('killed');
+    expect(state.player.mode).toBe('dead');
+    expect(state.player.health).toBe(0);
+    expect(state.completed).toBe(true);
+    expect(state.paused).toBe(true);
+    expect(state.gameOverReason).toBe('no-lives');
     updatePlayerCombat(state, RUNTIME_CONFIG.deathDuration);
-    expect(state.player.health).toBe(2); expect(state.player.mode).toBe('fall');
-    expect(state.player.invulnerabilityRemaining).toBe(RUNTIME_CONFIG.respawnInvulnerability);
+    expect(state.player.health).toBe(0);
+    expect(state.player.mode).toBe('dead');
   });
 });
