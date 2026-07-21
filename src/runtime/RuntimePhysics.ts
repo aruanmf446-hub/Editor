@@ -11,12 +11,12 @@ import { updateCamera } from './systems/CameraSystem';
 import { enterRuntimeScene, updateRuntimeCheckpoints, updateRuntimeFinish } from './systems/RuntimeSceneSystem';
 
 function processPendingSceneTransition(world: RuntimeWorld): boolean {
-  const targetId = world.pendingSceneTransitionId;
-  if (!targetId) return false;
-  world.pendingSceneTransitionId = null;
-  const target = world.project.scenes.find((scene) => scene.id === targetId);
+  const pending = world.pendingSceneTransition;
+  if (!pending) return false;
+  world.pendingSceneTransition = null;
+  const target = world.project.scenes.find((scene) => scene.id === pending.sceneId);
   if (!target) return false;
-  enterRuntimeScene(world, target);
+  enterRuntimeScene(world, target, pending.entryId);
   return true;
 }
 
@@ -25,13 +25,9 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   world.player.renderPreviousX = world.player.x;
   world.player.renderPreviousY = world.player.y;
   updateRuntimeAdvancedObjects(world, delta);
-  if (processPendingSceneTransition(world)) {
-    updateCamera(world, delta);
-    return;
-  }
+  if (processPendingSceneTransition(world)) { updateCamera(world, delta); return; }
 
-  const dialogueBlocksPlayer = isPlayerBlockedByDialogue(world);
-  if (dialogueBlocksPlayer) {
+  if (isPlayerBlockedByDialogue(world)) {
     world.player.velocityX = 0;
     world.player.velocityY = 0;
     world.player.attackHitbox = null;
@@ -47,10 +43,7 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   }
 
   updateRuntimeAdvancedObjects(world, 0);
-  if (processPendingSceneTransition(world)) {
-    updateCamera(world, delta);
-    return;
-  }
+  if (processPendingSceneTransition(world)) { updateCamera(world, delta); return; }
   updateRuntimeEnemies(world, delta);
   updateRuntimePickups(world, delta);
   updateRuntimeCheckpoints(world);
