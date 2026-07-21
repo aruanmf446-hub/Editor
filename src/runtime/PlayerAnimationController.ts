@@ -36,6 +36,7 @@ const aliases: Record<PlayerAnimationState, string[]> = {
 
 const exactOnlyAliases = new Set(['hit']);
 const locomotionStates = new Set<PlayerAnimationState>(['walk', 'run']);
+const MAX_ANIMATION_DELTA = 0.25;
 
 export function normalizeAnimationClipName(name: string): string {
   return name
@@ -214,7 +215,13 @@ export class PlayerAnimationController {
   }
 
   update(delta: number): void {
-    if (Number.isFinite(delta) && delta > 0) this.mixer.update(Math.min(delta, 0.1));
+    if (!Number.isFinite(delta) || delta <= 0) return;
+
+    // Mantém o tempo real da reprodução durante quedas curtas de FPS.
+    // O limite maior evita que a animação "congele" por descartar metade do
+    // tempo de um frame lento, mas ainda impede saltos enormes após a aba
+    // permanecer suspensa por muito tempo.
+    this.mixer.update(Math.min(delta, MAX_ANIMATION_DELTA));
   }
 
   getCurrentState(): PlayerAnimationState | null {
