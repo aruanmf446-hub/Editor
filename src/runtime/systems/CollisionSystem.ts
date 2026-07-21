@@ -45,6 +45,18 @@ function moveWithoutCollisions(world: RuntimeWorld, delta: number): void {
   }
 }
 
+function endTestByFall(world: RuntimeWorld): void {
+  world.campaignDeaths = (world.campaignDeaths ?? 0) + 1;
+  world.gameOverReason = 'fall';
+  world.completed = true;
+  world.paused = true;
+  world.player.health = 0;
+  world.player.mode = 'dead';
+  world.player.visualState = 'dead';
+  world.player.velocityX = 0;
+  world.player.velocityY = 0;
+}
+
 export function resolveWorldMovement(world: RuntimeWorld, delta: number) {
   const player = world.player;
   player.lastCollisionSide = null;
@@ -54,10 +66,11 @@ export function resolveWorldMovement(world: RuntimeWorld, delta: number) {
     moveVertical(player, world.platforms, delta);
     if (!player.grounded && player.velocityY >= 0 && probeGround(player, world.platforms)) player.grounded = true;
   }
+  if (player.grounded) player.airJumpsRemaining = player.doubleJumpEnabled ? 1 : 0;
   if (player.y < 0) {
     player.y = 0;
     if (player.velocityY < 0) player.velocityY = 0;
     player.lastCollisionSide = 'top';
   }
-  if (player.y > world.scene.height + player.height) respawnPlayerSafely(world);
+  if (player.y > world.scene.height + player.height) endTestByFall(world);
 }
