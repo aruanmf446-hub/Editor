@@ -9,6 +9,7 @@ import { EditorCanvas } from './EditorCanvas';
 import { EditorHeader, type StudioMode } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
 import { EnemyActivationPanel } from './EnemyActivationPanel';
+import { EntryPointsPanel } from './EntryPointsPanel';
 import { Inspector } from './Inspector';
 import { ObjectTree } from './ObjectTree';
 import { PlayerAnimationPanel } from './PlayerAnimationPanel';
@@ -30,7 +31,6 @@ const responsivePanels: Array<{ id: ResponsivePanel; icon: string; label: string
 export function EditorShell() {
   const [mode, setMode] = useState<StudioMode>('edit');
   const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>('canvas');
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const state = useEditorStore.getState();
@@ -68,7 +68,6 @@ export function EditorShell() {
   }, [mode]);
 
   if (mode === 'test') return <main className="app-shell mode-test"><EditorHeader mode={mode} onModeChange={setMode} /><RuntimeGame onExit={() => setMode('edit')} /></main>;
-
   return <main className="app-shell mode-edit">
     <EditorHeader mode={mode} onModeChange={setMode} />
     <EditorToolbar />
@@ -80,7 +79,7 @@ export function EditorShell() {
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><EntryPointsPanel /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />
