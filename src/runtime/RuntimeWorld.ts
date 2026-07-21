@@ -6,13 +6,22 @@ import type { RuntimePlayerState } from './RuntimePlayer';
 export type RuntimeBounds = { x: number; y: number; width: number; height: number };
 export type RuntimeCameraState = { x: number; y: number; viewportWidth: number; viewportHeight: number };
 export type RuntimePlatformState = RuntimeBounds & { id: string; oneWay: boolean };
+export type RuntimeCheckpointState = {
+  sceneId: string;
+  objectId: string;
+  x: number;
+  y: number;
+  respawnHealth: number;
+};
 
 export type RuntimeWorld = {
   project: ElFuegoProject;
   scene: ProjectScene;
+  sceneRevision: number;
   player: RuntimePlayerState;
   enemies: RuntimeEnemyState[];
   platforms: RuntimePlatformState[];
+  activeCheckpoint: RuntimeCheckpointState | null;
   camera: RuntimeCameraState;
   input: RuntimeInputSnapshot;
   paused: boolean;
