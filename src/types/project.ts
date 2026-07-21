@@ -24,6 +24,7 @@ export interface CampaignProgress {
   attack: number;
   defense: number;
   collectedObjectIds: string[];
+  collectibleTotals?: Record<string, number>;
   bestResults: Record<string, CampaignBestResult>;
   lastLevelId: string | null;
   storyVariables: Record<string, string | number | boolean>;
@@ -53,6 +54,29 @@ export type TriggerAction =
   | { id: string; type: 'transition-scene'; targetSceneId: SceneId; targetEntryId?: string }
   | { id: string; type: 'set-variable'; key: string; value: string | number | boolean };
 
+export type CollectibleKind = 'coin' | 'key' | 'story' | 'resource' | 'quest';
+export interface CollectibleDefinition {
+  id: string;
+  kind: CollectibleKind;
+  displayName: string;
+  description?: string;
+  value: number;
+  iconAssetId?: AssetId;
+  objectiveId?: string;
+  required?: boolean;
+  collectOnce?: boolean;
+  respawnable?: boolean;
+  respawnDelayMs?: number;
+  actions?: TriggerAction[];
+}
+
+export type CompletionCondition =
+  | { id: string; type: 'boss-defeated'; targetObjectId?: ObjectId }
+  | { id: string; type: 'collectible-count'; collectibleId: string; minimum: number }
+  | { id: string; type: 'variable'; key: string; value: string | number | boolean }
+  | { id: string; type: 'dialogue-completed'; targetObjectId: ObjectId }
+  | { id: string; type: 'required-enemies-defeated' };
+
 export type SceneObjectType = 'player-spawn' | 'finish' | 'checkpoint' | 'platform' | 'wall' | 'drop-zone' | 'no-collision-zone' | 'pickup-health' | 'pickup-attack' | 'pickup-defense' | 'enemy-cactus' | 'boss' | 'decoration' | 'obstacle' | 'trigger' | 'dialogue-zone' | 'collectible';
 
 export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType> {
@@ -63,13 +87,15 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   animationAssignments?: PlayerAnimationAssignments;
   enemyAnimationAssignments?: EnemyAnimationAssignments;
   collisionType?: 'solid' | 'one-way' | 'none'; passThrough?: boolean; visibleInGame?: boolean;
-  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number; enemyActiveAtStart?: boolean;
+  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number; enemyActiveAtStart?: boolean; requiredForCompletion?: boolean;
   bossHealth?: number; bossPhaseCount?: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[];
   checkpointOrder?: number; respawnHealth?: number;
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
   triggerOnce?: boolean; triggerId?: string; triggerActions?: TriggerAction[];
   dialogueLines?: DialogueLine[]; dialogueBlockPlayer?: boolean; dialogueAdvanceMode?: DialogueAdvanceMode; dialogueOnce?: boolean;
+  collectible?: CollectibleDefinition;
   endingMode?: FinishEndingMode; targetSceneId?: string; targetEntryId?: string; requiresAllCollectibles?: boolean;
+  completionLogic?: 'all' | 'any'; completionConditions?: CompletionCondition[];
 }
 export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; entryId?: string; defaultEntry?: boolean; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }
 export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; enemyAnimationAssignments?: EnemyAnimationAssignments; }
