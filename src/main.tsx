@@ -6,6 +6,7 @@ import './styles/assets.css';
 import './styles/el-fuego.css';
 import './styles/runtime-enemies.css';
 import './styles/runtime-pickups.css';
+import './styles/runtime-advanced.css';
 import './styles/responsive.css';
 import './styles/responsive-tablet.css';
 

@@ -1,4 +1,5 @@
 import type { RuntimeWorld } from './RuntimeWorld';
+import { updateRuntimeAdvancedObjects } from './RuntimeAdvancedObjects';
 import { resolvePlayerVisualState } from './RuntimePlayer';
 import { updateRuntimeEnemies } from './RuntimeEnemy';
 import { updateRuntimePickups } from './RuntimePickup';
@@ -13,12 +14,14 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   if (world.paused) return;
   world.player.renderPreviousX = world.player.x;
   world.player.renderPreviousY = world.player.y;
+  updateRuntimeAdvancedObjects(world);
   updatePlayerCombat(world, delta);
   updatePlayerMovement(world, delta);
   if (world.player.mode !== 'dead') {
     applyGravity(world, delta);
     resolveWorldMovement(world, delta);
   }
+  updateRuntimeAdvancedObjects(world);
   updateRuntimeEnemies(world, delta);
   updateRuntimePickups(world, delta);
   updateRuntimeCheckpoints(world);

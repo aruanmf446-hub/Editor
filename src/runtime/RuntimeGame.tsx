@@ -19,6 +19,8 @@ const pickupIcon: Record<RuntimePickupKind, string> = {
   attack: '⚔',
   defense: '◆',
 };
+const hiddenRuntimeTypes = new Set(['player-spawn', 'enemy-cactus', 'boss', 'drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone', 'collectible']);
+const debugZoneTypes = new Set(['drop-zone', 'no-collision-zone', 'trigger', 'dialogue-zone']);
 
 export function RuntimeGame({ onExit }: Props) {
   const sourceProject = useEditorStore((state) => state.project);
@@ -90,6 +92,13 @@ export function RuntimeGame({ onExit }: Props) {
     pickupMemory: fallbackPickupMemory,
     platforms: createRuntimePlatforms(loadResult.initialScene),
     activeCheckpoint: null,
+    collectedObjectIds: {},
+    triggeredObjectIds: {},
+    activeTriggerContacts: {},
+    collectiblesRemaining: loadResult.initialScene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly).length,
+    activeDialogue: null,
+    lastTriggerId: null,
+    playerNoCollision: false,
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
     paused: false,
@@ -105,6 +114,7 @@ export function RuntimeGame({ onExit }: Props) {
   const background = scene.background ?? { fit: 'cover', positionX: 50, positionY: 50, scale: 1, editorOpacity: 1 };
   const backgroundUrl = scene.backgroundAssetId ? urls[scene.backgroundAssetId] : undefined;
   const objectFit = background.fit === 'stretch' ? 'fill' : background.fit === 'original' ? 'none' : background.fit;
+  const collected = world.collectedObjectIds ?? {};
 
   const togglePause = () => {
     const controller = controllerRef.current;
@@ -114,14 +124,16 @@ export function RuntimeGame({ onExit }: Props) {
   };
 
   return <section className="runtime-game">
-    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}{activeBoss && <span>Boss {activeBoss.health}/{activeBoss.maxHealth} · Fase {activeBoss.phase}/{activeBoss.phaseCount}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
+    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}{(world.collectiblesRemaining ?? 0) > 0 && <span>Coletáveis {world.collectiblesRemaining}</span>}{world.playerNoCollision && <span>Sem colisão</span>}{world.lastTriggerId && <span>Gatilho {world.lastTriggerId}</span>}{activeBoss && <span>Boss {activeBoss.health}/{activeBoss.maxHealth} · Fase {activeBoss.phase}/{activeBoss.phaseCount}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus' && object.type !== 'boss' && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.visible && !object.editorOnly && !hiddenRuntimeTypes.has(object.type) && !object.type.startsWith('pickup-')).map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly && !collected[object.id]).map((object) => <div key={object.id} className="runtime-entity runtime-collectible-live" style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span aria-hidden="true">✦</span></div>)}
         {world.pickups.filter((pickup) => pickup.active).map((pickup) => <div key={pickup.id} className={`runtime-entity runtime-pickup-live runtime-pickup-${pickup.kind}`} style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span aria-hidden="true">{pickupIcon[pickup.kind]}</span>{debug && <small>+{pickup.amount}</small>}</div>)}
         <RuntimeEnemiesLayer world={world} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
+        {debug && scene.objects.filter((object) => debugZoneTypes.has(object.type) && object.visible && !object.editorOnly).map((object) => <div key={`zone-${object.id}`} className={`runtime-debug-zone runtime-debug-zone--${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         {debug && world.pickups.filter((pickup) => !pickup.active && pickup.respawnRemaining > 0).map((pickup) => <div key={`pickup-timer-${pickup.id}`} className="runtime-pickup-timer" style={{ left: pickup.x, top: pickup.y, width: pickup.width, height: pickup.height }}><span>{pickup.respawnRemaining.toFixed(1)}s</span></div>)}
         {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
         {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
@@ -133,6 +145,7 @@ export function RuntimeGame({ onExit }: Props) {
         world={world}
         onStatusChange={setPlayerModelStatus}
       />
+      {world.activeDialogue && <div className="runtime-dialogue" role="status"><p>{world.activeDialogue}</p></div>}
     </div>
     {world.completed && <div className="runtime-pause runtime-complete"><h2>Jogo concluído</h2><p>{scene.name} finalizada.</p><button onClick={onExit}>Voltar ao editor</button></div>}
     {!world.completed && pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}

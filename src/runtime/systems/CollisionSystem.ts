@@ -33,12 +33,27 @@ export function respawnPlayerSafely(world: RuntimeWorld): boolean {
   return true;
 }
 
+function moveWithoutCollisions(world: RuntimeWorld, delta: number): void {
+  const player = world.player;
+  player.x = Math.min(Math.max(0, player.x + player.velocityX * delta), Math.max(0, world.scene.width - player.width));
+  player.y += player.velocityY * delta;
+  player.grounded = false;
+  if (player.y < 0) {
+    player.y = 0;
+    if (player.velocityY < 0) player.velocityY = 0;
+    player.lastCollisionSide = 'top';
+  }
+}
+
 export function resolveWorldMovement(world: RuntimeWorld, delta: number) {
   const player = world.player;
   player.lastCollisionSide = null;
-  moveHorizontal(player, world.platforms, delta, world.scene.width);
-  moveVertical(player, world.platforms, delta);
-  if (!player.grounded && player.velocityY >= 0 && probeGround(player, world.platforms)) player.grounded = true;
+  if (world.playerNoCollision) moveWithoutCollisions(world, delta);
+  else {
+    moveHorizontal(player, world.platforms, delta, world.scene.width);
+    moveVertical(player, world.platforms, delta);
+    if (!player.grounded && player.velocityY >= 0 && probeGround(player, world.platforms)) player.grounded = true;
+  }
   if (player.y < 0) {
     player.y = 0;
     if (player.velocityY < 0) player.velocityY = 0;
