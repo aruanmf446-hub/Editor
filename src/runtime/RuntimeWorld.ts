@@ -25,6 +25,9 @@ export type RuntimeWorld = {
   platforms: RuntimePlatformState[];
   activeCheckpoint: RuntimeCheckpointState | null;
   collectedObjectIds?: RuntimeObjectMemory;
+  collectedObjectiveIds?: RuntimeObjectMemory;
+  collectibleScore?: number;
+  collectibleTotalsByKind?: Record<string, number>;
   triggeredObjectIds?: RuntimeObjectMemory;
   activeTriggerContacts?: RuntimeObjectMemory;
   completedDialogueIds?: RuntimeObjectMemory;
@@ -32,6 +35,7 @@ export type RuntimeWorld = {
   collisionEnabledOverrides?: Record<string, boolean>;
   variables?: Record<string, RuntimeVariableValue>;
   collectiblesRemaining?: number;
+  requiredCollectiblesRemaining?: number;
   activeDialogue?: RuntimeDialogueState | null;
   dialogueAdvanceRequested?: boolean;
   lastTriggerId?: string | null;
