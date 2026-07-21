@@ -1,3 +1,4 @@
+import type { CampaignProgress } from '../types/project';
 import type { RuntimeProjectSnapshot } from './RuntimeProjectLoader';
 import { resetRuntimeSceneObjectState } from './RuntimeAdvancedObjects';
 import { restoreCampaignProgress } from './RuntimeCampaign';
@@ -9,7 +10,6 @@ import { createRuntimePickups } from './RuntimePickup';
 import { updateRuntimeWorld } from './RuntimePhysics';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
-import type { CampaignProgress } from '../types/project';
 
 export type RuntimePauseReason = 'manual' | 'blur' | null;
 export type RuntimeControllerSnapshot = { world: RuntimeWorld; fps: number };
@@ -22,7 +22,6 @@ export class RuntimeController {
   private pauseReason: RuntimePauseReason = null;
   private accumulator = 0;
   private disposed = false;
-  private renderTimer = 0;
 
   constructor(private readonly options: Options) {
     const { snapshot } = options;
@@ -110,8 +109,11 @@ export class RuntimeController {
     }
     this.world.physicsSteps = steps;
     this.world.accumulator = this.accumulator;
-    this.renderTimer += frame.delta;
-    if (this.renderTimer >= 1 / 30) { this.renderTimer = 0; this.emit(frame.fps); }
+
+    // O loop já é dirigido por requestAnimationFrame. Emitir somente a 30 Hz fazia a
+    // câmera e os elementos React avançarem em saltos, embora o contador mostrasse 60 FPS.
+    // Mantemos a física fixa em 60 Hz e apresentamos cada frame do navegador.
+    this.emit(frame.fps);
   };
   private emit(fps: number): void { if (!this.disposed) this.options.onRender({ world: this.world, fps }); }
   private emittedProgressRevision = 0;
