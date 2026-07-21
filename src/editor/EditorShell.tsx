@@ -9,29 +9,39 @@ import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
 import { Timeline } from './Timeline';
 
+const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+
 export function EditorShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const state = useEditorStore.getState();
       const key = event.key.toLowerCase();
-      if ((event.ctrlKey || event.metaKey) && key === 's') {
+      const command = event.ctrlKey || event.metaKey;
+
+      if (command && key === 's') {
         event.preventDefault();
         state.setSaveStatus('Salvando...');
         void saveProject(state.project).then(() => state.setSaveStatus('Salvo')).catch(() => state.setSaveStatus('Erro ao salvar'));
-      } else if ((event.ctrlKey || event.metaKey) && key === 'z') {
+      } else if (command && key === 'z') {
         event.preventDefault(); event.shiftKey ? state.redo() : state.undo();
-      } else if ((event.ctrlKey || event.metaKey) && key === 'y') {
+      } else if (command && key === 'y') {
         event.preventDefault(); state.redo();
-      } else if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedObjectId && !(event.target instanceof HTMLInputElement)) {
-        event.preventDefault(); state.deleteObject(state.selectedObjectId);
-      } else if (state.selectedObjectId && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key) && !(event.target instanceof HTMLInputElement)) {
+      } else if (!isTyping(event.target) && command && key === 'a') {
+        event.preventDefault(); state.selectAllObjects();
+      } else if (!isTyping(event.target) && command && key === 'c') {
+        event.preventDefault(); state.copySelected();
+      } else if (!isTyping(event.target) && command && key === 'v') {
+        event.preventDefault(); state.pasteClipboard();
+      } else if (!isTyping(event.target) && command && key === 'd') {
+        event.preventDefault(); state.duplicateSelected();
+      } else if (!isTyping(event.target) && (event.key === 'Delete' || event.key === 'Backspace') && state.selectedObjectIds.length) {
+        event.preventDefault(); state.deleteSelected();
+      } else if (!isTyping(event.target) && state.selectedObjectIds.length && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault();
-        const object = state.project.scenes.flatMap((scene) => scene.objects).find((item) => item.id === state.selectedObjectId);
-        if (!object || object.locked) return;
         const amount = event.shiftKey ? 10 : 1;
         const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
         const dy = event.key === 'ArrowUp' ? -amount : event.key === 'ArrowDown' ? amount : 0;
-        state.updateObject(object.id, { transform: { ...object.transform, x: object.transform.x + dx, y: object.transform.y + dy } });
+        state.moveSelected(dx, dy);
       }
     };
     window.addEventListener('keydown', onKeyDown);
