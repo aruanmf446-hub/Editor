@@ -4,6 +4,7 @@ import { RuntimeGame } from '../runtime/RuntimeGame';
 import { useEditorStore } from '../state/editorStore';
 import { AssetLibrary } from './AssetLibrary';
 import { BossCombatPanel } from './BossCombatPanel';
+import { CampaignPanel } from './CampaignPanel';
 import { DialogueEditorPanel } from './DialogueEditorPanel';
 import { EditorCanvas } from './EditorCanvas';
 import { EditorHeader, type StudioMode } from './EditorHeader';
@@ -79,7 +80,7 @@ export function EditorShell() {
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><EntryPointsPanel /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><CampaignPanel /><EntryPointsPanel /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />

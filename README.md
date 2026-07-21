@@ -24,6 +24,8 @@ Já estão implementados:
 - boss com vida, fases progressivas, aumento de velocidade, dano e cooldown;
 - checkpoints reais com posição e vida de respawn;
 - transição para próxima cena, cena específica e conclusão do jogo;
+- campanha configurável separada das cenas, com dez fases e dependências de desbloqueio;
+- progresso permanente de fases, checkpoints, atributos, colecionáveis, resultados e variáveis de história;
 - reconstrução de câmera, plataformas, inimigos, pickups e player ao trocar de cena;
 - pickups de vida, ataque e defesa, com respawn configurável e persistência;
 - obstáculos sólidos, zonas de queda e áreas sem colisão;
@@ -72,6 +74,12 @@ O editor cria e altera os dados do projeto. Física, animações e comportamento
 O formato ainda valida um spawn global por projeto usando os códigos `MISSING_GLOBAL_SPAWN` e `MULTIPLE_GLOBAL_SPAWNS`.
 
 O runtime também aceita um `player-spawn` na cena de destino. Quando a cena não possui spawn próprio, cria uma entrada automática segura preservando o modelo, as animações e os atributos atuais do player.
+
+## Campanha e progresso
+
+O painel **Campanha** prepara as dez fases do El Fuego e permite escolher a cena inicial e a regra de desbloqueio de cada uma. Fases e cenas são estruturas diferentes: uma fase começa em uma cena, mas pode atravessar várias cenas por transições nomeadas.
+
+O progresso é salvo separadamente do documento editável no IndexedDB. Ele registra fases liberadas e concluídas, último nível jogado, checkpoint por fase, vida, ataque, defesa, colecionáveis, melhor resultado e variáveis da história. Projetos antigos sem campanha continuam executando pelo fluxo clássico.
 
 ## Animações do GLB
 

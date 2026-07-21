@@ -1,6 +1,7 @@
 import type { ProjectScene, SceneObjectBase } from '../types/project';
 import { intersects } from './RuntimeCollision';
 import type { RuntimeBounds, RuntimeWorld } from './RuntimeWorld';
+import { recordCampaignStats } from './RuntimeCampaign';
 
 export type RuntimePickupKind = 'health' | 'attack' | 'defense';
 export type RuntimePickupMemory = Record<string, number>;
@@ -99,6 +100,7 @@ export function updateRuntimePickups(world: RuntimeWorld, delta: number): void {
     }
     if (!overlapping || world.player.mode === 'dead') continue;
     if (!applyPickup(world, pickup)) continue;
+    recordCampaignStats(world);
 
     pickup.active = false;
     pickup.requiresExit = true;

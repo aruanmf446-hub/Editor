@@ -1,6 +1,7 @@
 import { migrateProject } from '../project/migrateProject';
 import { projectSchema } from '../project/projectSchema';
 import type { ElFuegoProject, ProjectScene, SceneObjectBase } from '../types/project';
+import { campaignLevels, EL_FUEGO_LEVEL_COUNT } from '../project/campaign';
 
 export type ValidationIssue = {
   severity: 'error' | 'warning' | 'info';
@@ -81,6 +82,7 @@ function graphIssues(project: ElFuegoProject): ValidationIssue[] {
 
   for (const id of graph.keys()) visit(id);
 
+  const starts = campaignLevels(project.campaign).map((level) => level.initialSceneId);
   const first = [...project.scenes].sort((a, b) => a.order - b.order)[0]?.id;
   const reachable = new Set<string>();
   const walk = (id: string) => {
@@ -88,7 +90,7 @@ function graphIssues(project: ElFuegoProject): ValidationIssue[] {
     reachable.add(id);
     for (const next of graph.get(id) ?? []) if (graph.has(next)) walk(next);
   };
-  if (first) walk(first);
+  for (const start of starts.length ? starts : first ? [first] : []) walk(start);
 
   for (const scene of project.scenes) {
     if (!reachable.has(scene.id)) {
@@ -108,11 +110,12 @@ function graphIssues(project: ElFuegoProject): ValidationIssue[] {
 function validateEntries(project: ElFuegoProject, issues: ValidationIssue[]): void {
   const ordered = [...project.scenes].sort((a, b) => a.order - b.order);
   const firstScene = ordered[0];
+  const campaignStarts = new Set(campaignLevels(project.campaign).map((level) => level.initialSceneId));
 
   for (const scene of project.scenes) {
     const entries = visibleEntries(scene);
-    if (scene.id === firstScene?.id && entries.length === 0) {
-      issues.push({ severity: 'error', code: 'MISSING_INITIAL_SCENE_ENTRY', message: `${scene.name} precisa de uma entrada do player para iniciar o jogo.`, sceneId: scene.id });
+    if ((campaignStarts.size ? campaignStarts.has(scene.id) : scene.id === firstScene?.id) && entries.length === 0) {
+      issues.push({ severity: 'error', code: 'MISSING_INITIAL_SCENE_ENTRY', message: `${scene.name} precisa de uma entrada do player para iniciar uma fase.`, sceneId: scene.id });
     } else if (entries.length === 0) {
       issues.push({ severity: 'warning', code: 'SCENE_WITHOUT_ENTRY', message: `${scene.name} não possui entrada própria; o runtime usará uma entrada automática de compatibilidade.`, sceneId: scene.id });
     }
@@ -139,6 +142,35 @@ function validateEntries(project: ElFuegoProject, issues: ValidationIssue[]): vo
     }
     if (entries.length > 1 && defaultCount === 0) {
       issues.push({ severity: 'warning', code: 'MISSING_DEFAULT_ENTRY', message: `${scene.name} possui várias entradas, mas nenhuma foi marcada como padrão.`, sceneId: scene.id });
+    }
+  }
+}
+
+function validateCampaign(project: ElFuegoProject, issues: ValidationIssue[]): void {
+  if (!project.campaign) return;
+  const levels = campaignLevels(project.campaign);
+  if (levels.length !== EL_FUEGO_LEVEL_COUNT) {
+    issues.push({ severity: 'warning', code: 'CAMPAIGN_LEVEL_COUNT', message: `A campanha do El Fuego está com ${levels.length} de ${EL_FUEGO_LEVEL_COUNT} fases.` });
+  }
+  const levelIds = new Set<string>();
+  const sceneIds = new Set(project.scenes.map((scene) => scene.id));
+  for (const level of levels) {
+    if (levelIds.has(level.id)) issues.push({ severity: 'error', code: 'DUPLICATE_LEVEL_ID', message: `ID de fase duplicado: ${level.id}.` });
+    levelIds.add(level.id);
+    if (!sceneIds.has(level.initialSceneId)) issues.push({ severity: 'error', code: 'LEVEL_INITIAL_SCENE_MISSING', message: `${level.name}: a cena inicial não existe.` });
+  }
+  for (const level of levels) {
+    if (level.unlockAfterLevelId === level.id) issues.push({ severity: 'error', code: 'LEVEL_UNLOCK_SELF', message: `${level.name} não pode depender de si mesma.` });
+    else if (level.unlockAfterLevelId && !levelIds.has(level.unlockAfterLevelId)) issues.push({ severity: 'error', code: 'LEVEL_UNLOCK_MISSING', message: `${level.name}: a fase exigida para desbloqueio não existe.` });
+    const visited = new Set<string>();
+    let cursor: typeof level | undefined = level;
+    while (cursor?.unlockAfterLevelId) {
+      if (visited.has(cursor.id)) {
+        issues.push({ severity: 'error', code: 'LEVEL_UNLOCK_CYCLE', message: `Ciclo de desbloqueio detectado a partir de ${level.name}.` });
+        break;
+      }
+      visited.add(cursor.id);
+      cursor = levels.find((candidate) => candidate.id === cursor?.unlockAfterLevelId);
     }
   }
 }
@@ -207,6 +239,7 @@ export function validateProject(input: unknown): { valid: boolean; project?: ElF
   const sceneIds = new Set(project.scenes.map((scene) => scene.id));
   const ordered = [...project.scenes].sort((a, b) => a.order - b.order);
 
+  validateCampaign(project, issues);
   validateEntries(project, issues);
 
   for (const scene of project.scenes) {

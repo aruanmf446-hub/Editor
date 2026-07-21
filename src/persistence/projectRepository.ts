@@ -10,4 +10,4 @@ export async function saveProject(project: ElFuegoProject): Promise<void> {
 }
 export async function loadProject(id:string):Promise<ElFuegoProject|undefined>{ return (await db.projects.get(id))?.data; }
 export async function listProjects():Promise<ElFuegoProject[]>{ return (await db.projects.orderBy('updatedAt').reverse().toArray()).map((record)=>record.data); }
-export async function deleteProject(id:string):Promise<void>{ await db.transaction('rw',db.projects,db.backups,async()=>{await db.projects.delete(id);await db.backups.where('projectId').equals(id).delete();}); }
+export async function deleteProject(id:string):Promise<void>{ await db.transaction('rw',db.projects,db.backups,db.campaignProgress,async()=>{await db.projects.delete(id);await db.backups.where('projectId').equals(id).delete();await db.campaignProgress.delete(id);}); }

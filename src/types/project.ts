@@ -10,6 +10,25 @@ export interface ProjectMetadata { id: ProjectId; name: string; createdAt: strin
 export interface ProjectSettings { gravity: number; gridSize: number; snapEnabled: boolean; defaultSceneWidth: number; defaultSceneHeight: number; }
 export type AssetCategory = 'background' | 'model' | 'texture' | 'audio' | 'thumbnail' | 'other';
 export interface ProjectAsset { id: AssetId; name: string; originalName: string; mimeType: string; size: number; checksum?: string; category: AssetCategory; }
+export interface CampaignLevel { id: string; name: string; initialSceneId: SceneId; unlockAfterLevelId: string | null; }
+export interface CampaignChapter { id: string; name: string; levels: CampaignLevel[]; }
+export interface CampaignDefinition { chapters: CampaignChapter[]; }
+export interface CampaignCheckpointProgress { sceneId: SceneId; objectId: ObjectId; x: number; y: number; respawnHealth: number; }
+export interface CampaignBestResult { completedAt: string; deaths: number; elapsedMs: number; }
+export interface CampaignProgress {
+  projectId: ProjectId;
+  unlockedLevelIds: string[];
+  completedLevelIds: string[];
+  checkpoints: Record<string, CampaignCheckpointProgress>;
+  lives: number;
+  attack: number;
+  defense: number;
+  collectedObjectIds: string[];
+  bestResults: Record<string, CampaignBestResult>;
+  lastLevelId: string | null;
+  storyVariables: Record<string, string | number | boolean>;
+  updatedAt: string;
+}
 export interface Transform2D { x: number; y: number; z: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; }
 export type BackgroundFit = 'cover' | 'contain' | 'stretch' | 'original';
 export interface SceneBackgroundSettings { fit: BackgroundFit; positionX: number; positionY: number; scale: number; editorOpacity: number; }
@@ -58,4 +77,4 @@ export interface BossObject extends SceneObjectBase<'boss'> { direction: 'left' 
 export interface PlatformObject extends SceneObjectBase<'platform'> { collisionType: 'solid' | 'one-way' | 'none'; passThrough: boolean; visibleInGame: boolean; }
 export type KnownSceneObject = PlayerSpawnObject | CactusObject | BossObject | PlatformObject | SceneObjectBase;
 export interface ProjectScene { id: SceneId; name: string; order: number; width: number; height: number; backgroundAssetId: AssetId | null; background: SceneBackgroundSettings; objects: KnownSceneObject[]; }
-export interface ElFuegoProject { format: typeof EL_FUEGO_PROJECT_FORMAT; version: typeof EL_FUEGO_PROJECT_VERSION; project: ProjectMetadata; settings: ProjectSettings; assets: ProjectAsset[]; scenes: ProjectScene[]; }
+export interface ElFuegoProject { format: typeof EL_FUEGO_PROJECT_FORMAT; version: typeof EL_FUEGO_PROJECT_VERSION; project: ProjectMetadata; settings: ProjectSettings; assets: ProjectAsset[]; scenes: ProjectScene[]; campaign?: CampaignDefinition; }

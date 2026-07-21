@@ -75,6 +75,19 @@
 - GitLab Pages;
 - operação offline após carregamento dos assets.
 
+## Fase 7 — Sistemas do El Fuego
+
+- [x] GLB e animações próprias de cacto e boss;
+- [x] ataques e fases configuráveis do boss;
+- [x] gatilhos com ações tipadas e ordenadas;
+- [x] diálogos com falas, retratos e bloqueio do player;
+- [x] entradas nomeadas por cena e transição;
+- [x] campanha separada das cenas com dez fases;
+- [x] progresso permanente da campanha;
+- [ ] colecionáveis configuráveis e condições específicas de objetivo;
+- [ ] tela de seleção de fases e resumo de progresso;
+- [ ] conteúdo e assets finais das dez fases.
+
 ## Regra de execução
 
 Cada melhoria deve usar branch pequena, objetivo verificável e teste associado. Não substituir sistemas funcionais recuperados sem evidência técnica.
