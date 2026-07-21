@@ -3,6 +3,7 @@ import { saveProject } from '../persistence/projectRepository';
 import { RuntimeGame } from '../runtime/RuntimeGame';
 import { useEditorStore } from '../state/editorStore';
 import { AssetLibrary } from './AssetLibrary';
+import { BossCombatPanel } from './BossCombatPanel';
 import { EditorCanvas } from './EditorCanvas';
 import { EditorHeader, type StudioMode } from './EditorHeader';
 import { EditorToolbar } from './EditorToolbar';
@@ -14,9 +15,7 @@ import { ScenePanel } from './ScenePanel';
 import { StatusBar } from './StatusBar';
 
 const isTyping = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
-
 type ResponsivePanel = 'canvas' | 'objects' | 'assets' | 'properties' | 'problems';
-
 const responsivePanels: Array<{ id: ResponsivePanel; icon: string; label: string }> = [
   { id: 'canvas', icon: '▣', label: 'Canvas' },
   { id: 'objects', icon: '☷', label: 'Objetos' },
@@ -73,24 +72,12 @@ export function EditorShell() {
     <section className="workspace">
       <ScenePanel />
       <nav className="responsive-panel-tabs" aria-label="Painéis do editor">
-        {responsivePanels.map((panel) => (
-          <button
-            type="button"
-            key={panel.id}
-            className={responsivePanel === panel.id ? 'active' : ''}
-            aria-label={`Abrir ${panel.label}`}
-            aria-pressed={responsivePanel === panel.id}
-            onClick={() => setResponsivePanel(panel.id)}
-          >
-            <span aria-hidden="true">{panel.icon}</span>
-            <strong>{panel.label}</strong>
-          </button>
-        ))}
+        {responsivePanels.map((panel) => <button type="button" key={panel.id} className={responsivePanel === panel.id ? 'active' : ''} aria-label={`Abrir ${panel.label}`} aria-pressed={responsivePanel === panel.id} onClick={() => setResponsivePanel(panel.id)}><span aria-hidden="true">{panel.icon}</span><strong>{panel.label}</strong></button>)}
       </nav>
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><PlayerAnimationPanel /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><PlayerAnimationPanel /><BossCombatPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />

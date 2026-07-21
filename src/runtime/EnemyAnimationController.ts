@@ -10,7 +10,7 @@ import type { EnemyAnimationAssignments, EnemyAnimationRole } from '../types/pro
 import type { RuntimeEnemyVisualState } from './RuntimeEnemy';
 import { normalizeAnimationClipName } from './PlayerAnimationController';
 
-export type EnemyAnimationState = RuntimeEnemyVisualState | 'intro' | 'phase-transition';
+export type EnemyAnimationState = RuntimeEnemyVisualState | 'intro';
 export type EnemyAnimationMap = Partial<Record<EnemyAnimationState, AnimationClip>>;
 
 const aliases: Record<EnemyAnimationState, string[]> = {
@@ -77,6 +77,7 @@ export class EnemyAnimationController {
   readonly availableClipNames: string[];
   private readonly root: Object3D;
   private readonly actions = new Map<AnimationClip, AnimationAction>();
+  private readonly clipsByName: Map<string, AnimationClip>;
   private currentState: EnemyAnimationState | null = null;
   private currentAction: AnimationAction | null = null;
 
@@ -85,27 +86,35 @@ export class EnemyAnimationController {
     this.mixer = new AnimationMixer(root);
     this.clips = mapEnemyAnimationClips(clips, assignments);
     this.availableClipNames = clips.map((clip) => clip.name);
+    this.clipsByName = new Map(clips.map((clip) => [clip.name, clip]));
     for (const clip of clips) this.actions.set(clip, this.mixer.clipAction(clip));
   }
 
   transitionTo(state: EnemyAnimationState, fade = defaultFade(state)): boolean {
-    if (state === this.currentState) return true;
+    return this.transitionToResolved(state, this.clips[state], fade);
+  }
+
+  transitionToNamedClip(state: EnemyAnimationState, clipName: string, fade = defaultFade(state)): boolean {
+    const clip = this.clipsByName.get(clipName) ?? this.clips[state];
+    return this.transitionToResolved(state, clip, fade);
+  }
+
+  private transitionToResolved(state: EnemyAnimationState, clip: AnimationClip | undefined, fade: number): boolean {
     if (this.currentState === 'dead') return false;
-    const clip = this.clips[state];
-    if (!clip) {
+    const next = clip ? this.actions.get(clip) : undefined;
+    if (state === this.currentState && (!next || next === this.currentAction)) return true;
+    if (!clip || !next) {
       this.currentState = state;
       return true;
     }
-    const next = this.actions.get(clip);
-    if (!next) return false;
+
     const previous = this.currentAction;
     const previousState = this.currentState;
     const sameAction = previous === next;
-
     next.enabled = true;
     next.paused = false;
     next.setEffectiveWeight(1);
-    next.setEffectiveTimeScale(state === 'idle' && this.clips.idle !== clip ? 0 : 1);
+    next.setEffectiveTimeScale(1);
     next.setLoop(looping.has(state) ? LoopRepeat : LoopOnce, looping.has(state) ? Infinity : 1);
     next.clampWhenFinished = !looping.has(state);
 
@@ -149,6 +158,7 @@ export class EnemyAnimationController {
     }
     this.mixer.uncacheRoot(this.root);
     this.actions.clear();
+    this.clipsByName.clear();
     this.currentAction = null;
     this.currentState = null;
   }
