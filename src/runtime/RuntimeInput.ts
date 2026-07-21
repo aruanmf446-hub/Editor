@@ -16,7 +16,8 @@ const emptyState = (): RuntimeInputState => ({ left: false, right: false, jump: 
 
 export class RuntimeInput {
   readonly state = emptyState();
-  private previous = emptyState();
+  private pendingJumpPressed = false;
+  private pendingJumpReleased = false;
   private started = false;
 
   start() {
@@ -32,29 +33,35 @@ export class RuntimeInput {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     Object.assign(this.state, emptyState());
-    this.previous = emptyState();
+    this.resetEdges();
   }
 
   snapshot(): RuntimeInputSnapshot {
     return {
       ...this.state,
-      jumpPressed: this.state.jump && !this.previous.jump,
-      jumpReleased: !this.state.jump && this.previous.jump,
+      jumpPressed: this.pendingJumpPressed,
+      jumpReleased: this.pendingJumpReleased,
     };
   }
 
-  commitStep(): void {
-    this.previous = { ...this.state };
+  consumeEdges(): void {
+    this.pendingJumpPressed = false;
+    this.pendingJumpReleased = false;
   }
 
   resetEdges(): void {
-    this.previous = { ...this.state };
+    this.pendingJumpPressed = false;
+    this.pendingJumpReleased = false;
   }
 
   private setKey(code: string, value: boolean) {
     if (code === 'KeyA' || code === 'ArrowLeft') this.state.left = value;
     if (code === 'KeyD' || code === 'ArrowRight') this.state.right = value;
-    if (code === 'KeyW' || code === 'ArrowUp' || code === 'Space') this.state.jump = value;
+    if (code === 'KeyW' || code === 'ArrowUp' || code === 'Space') {
+      if (value && !this.state.jump) this.pendingJumpPressed = true;
+      if (!value && this.state.jump) this.pendingJumpReleased = true;
+      this.state.jump = value;
+    }
     if (code === 'KeyS' || code === 'ArrowDown') this.state.crouch = value;
     if (code === 'KeyJ') this.state.attack = value;
     if (code === 'KeyK') this.state.defend = value;
