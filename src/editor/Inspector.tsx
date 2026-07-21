@@ -29,7 +29,7 @@ export function Inspector() {
           <dl><div><dt>Ordem</dt><dd>{scene.order + 1}</dd></div><div><dt>Objetos</dt><dd>{scene.objects.length}</dd></div><div><dt>Cenário</dt><dd>{scene.backgroundAssetId ? 'Importado' : 'Nenhum'}</dd></div></dl>
         </div>
       )}
-      <div className={validation.valid ? 'validation ok' : 'validation error'}>{validation.valid ? 'Projeto estruturalmente válido' : `${validation.errors.length} erro(s) no projeto`}</div>
+      <div className={validation.valid ? 'validation ok' : 'validation error'}>{validation.valid ? 'Projeto estruturalmente válido' : `${validation.issues.length} erro(s) no projeto`}</div>
     </aside>
   );
 }
