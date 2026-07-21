@@ -5,22 +5,15 @@ import { receivePlayerDamage } from './systems/PlayerCombatSystem';
 
 export type RuntimeObjectMemory = Record<string, true>;
 
-function bounds(object: SceneObjectBase): RuntimeBounds {
-  return {
-    x: object.transform.x,
-    y: object.transform.y,
-    width: object.transform.width,
-    height: object.transform.height,
-  };
-}
-
-function baseVisibleRuntimeObject(object: SceneObjectBase): boolean {
-  return object.visible && !object.editorOnly;
-}
+const bounds = (object: SceneObjectBase): RuntimeBounds => ({
+  x: object.transform.x,
+  y: object.transform.y,
+  width: object.transform.width,
+  height: object.transform.height,
+});
 
 export function isRuntimeObjectVisible(world: RuntimeWorld, object: SceneObjectBase): boolean {
-  const override = world.objectVisibilityOverrides?.[object.id];
-  return override ?? baseVisibleRuntimeObject(object);
+  return world.objectVisibilityOverrides?.[object.id] ?? (object.visible && !object.editorOnly);
 }
 
 function memory(world: RuntimeWorld, key: 'collectedObjectIds' | 'triggeredObjectIds' | 'activeTriggerContacts' | 'completedDialogueIds'): RuntimeObjectMemory {
@@ -31,26 +24,23 @@ function memory(world: RuntimeWorld, key: 'collectedObjectIds' | 'triggeredObjec
   return created;
 }
 
-function dialogueLines(object: SceneObjectBase): DialogueLine[] {
-  if (object.dialogueLines?.length) {
-    return object.dialogueLines
-      .filter((line) => line.text.trim().length > 0)
-      .map((line, index) => ({
-        ...line,
-        id: line.id?.trim() || `${object.id}-fala-${index + 1}`,
-        speaker: line.speaker?.trim() || '',
-        text: line.text.trim(),
-        durationMs: Math.max(250, line.durationMs ?? 2500),
-      }));
-  }
-  return [{ id: `${object.id}-aviso`, speaker: '', text: object.name, durationMs: 1500 }];
+function normalizedDialogueLines(object: SceneObjectBase): DialogueLine[] {
+  if (!object.dialogueLines?.length) return [{ id: `${object.id}-aviso`, speaker: '', text: object.name, durationMs: 1500 }];
+  return object.dialogueLines
+    .filter((line) => line.text.trim().length > 0)
+    .map((line, index) => ({
+      ...line,
+      id: line.id?.trim() || `${object.id}-fala-${index + 1}`,
+      speaker: line.speaker?.trim() || '',
+      text: line.text.trim(),
+      durationMs: Math.max(250, line.durationMs ?? 2500),
+    }));
 }
 
 export function startRuntimeDialogue(world: RuntimeWorld, object: SceneObjectBase, contactOnly = false): boolean {
   if (object.type !== 'dialogue-zone' || !isRuntimeObjectVisible(world, object)) return false;
-  const completed = memory(world, 'completedDialogueIds');
-  if (object.dialogueOnce && completed[object.id]) return false;
-  const lines = dialogueLines(object);
+  if (object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id]) return false;
+  const lines = normalizedDialogueLines(object);
   if (!lines.length) return false;
   world.activeDialogue = {
     objectId: object.id,
@@ -74,26 +64,34 @@ function finishDialogue(world: RuntimeWorld): void {
   world.dialogueAdvanceRequested = false;
 }
 
-function updateActiveDialogue(world: RuntimeWorld, delta: number): void {
-  const dialogue = world.activeDialogue;
-  if (!dialogue) return;
-  const source = world.scene.objects.find((object) => object.id === dialogue.objectId);
-  if (dialogue.contactOnly) {
-    if (!source || !intersects(world.player, bounds(source))) world.activeDialogue = null;
+function updateDialogues(world: RuntimeWorld, delta: number): void {
+  const active = world.activeDialogue;
+  if (active) {
+    const source = world.scene.objects.find((object) => object.id === active.objectId);
+    if (active.contactOnly) {
+      if (!source || !intersects(world.player, bounds(source))) world.activeDialogue = null;
+      return;
+    }
+    active.lineElapsed += Math.max(0, delta);
+    const line = active.lines[active.lineIndex];
+    const duration = Math.max(0.25, (line?.durationMs ?? 2500) / 1000);
+    const manual = Boolean(world.dialogueAdvanceRequested) && (active.advanceMode === 'manual' || active.advanceMode === 'both');
+    const automatic = active.lineElapsed >= duration && (active.advanceMode === 'auto' || active.advanceMode === 'both');
+    if (!manual && !automatic) return;
+    world.dialogueAdvanceRequested = false;
+    active.lineIndex += 1;
+    active.lineElapsed = 0;
+    if (active.lineIndex >= active.lines.length) finishDialogue(world);
     return;
   }
 
-  dialogue.lineElapsed += Math.max(0, delta);
-  const line = dialogue.lines[dialogue.lineIndex];
-  const duration = Math.max(0.25, (line?.durationMs ?? 2500) / 1000);
-  const manual = Boolean(world.dialogueAdvanceRequested) && (dialogue.advanceMode === 'manual' || dialogue.advanceMode === 'both');
-  const automatic = dialogue.lineElapsed >= duration && (dialogue.advanceMode === 'auto' || dialogue.advanceMode === 'both');
-  if (!manual && !automatic) return;
-
-  world.dialogueAdvanceRequested = false;
-  dialogue.lineIndex += 1;
-  dialogue.lineElapsed = 0;
-  if (dialogue.lineIndex >= dialogue.lines.length) finishDialogue(world);
+  const dialogue = world.scene.objects.find((object) =>
+    object.type === 'dialogue-zone'
+    && isRuntimeObjectVisible(world, object)
+    && intersects(world.player, bounds(object))
+    && !(object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id])
+  );
+  if (dialogue) startRuntimeDialogue(world, dialogue, !dialogue.dialogueLines?.length);
 }
 
 export function isPlayerBlockedByDialogue(world: RuntimeWorld): boolean {
@@ -102,18 +100,14 @@ export function isPlayerBlockedByDialogue(world: RuntimeWorld): boolean {
 
 function updateNoCollisionZone(world: RuntimeWorld): void {
   world.playerNoCollision = world.scene.objects.some((object) =>
-    object.type === 'no-collision-zone'
-    && isRuntimeObjectVisible(world, object)
-    && intersects(world.player, bounds(object))
+    object.type === 'no-collision-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object))
   );
 }
 
 function updateDropZones(world: RuntimeWorld): void {
   if (world.player.mode === 'dead') return;
   const dropped = world.scene.objects.some((object) =>
-    object.type === 'drop-zone'
-    && isRuntimeObjectVisible(world, object)
-    && intersects(world.player, bounds(object))
+    object.type === 'drop-zone' && isRuntimeObjectVisible(world, object) && intersects(world.player, bounds(object))
   );
   if (!dropped) return;
   world.player.invulnerabilityRemaining = 0;
@@ -127,11 +121,7 @@ function updateDropZones(world: RuntimeWorld): void {
 
 function platformFromObject(object: SceneObjectBase): RuntimePlatformState | null {
   if (object.type !== 'platform' && object.type !== 'wall' && object.type !== 'obstacle') return null;
-  return {
-    id: object.id,
-    ...bounds(object),
-    oneWay: object.type === 'platform' && Boolean(object.passThrough),
-  };
+  return { id: object.id, ...bounds(object), oneWay: object.type === 'platform' && Boolean(object.passThrough) };
 }
 
 function setCollisionEnabled(world: RuntimeWorld, object: SceneObjectBase, enabled: boolean): void {
@@ -162,26 +152,22 @@ function executeTriggerAction(world: RuntimeWorld, action: TriggerAction): void 
   if (action.type === 'set-object-visible') {
     world.objectVisibilityOverrides ??= {};
     world.objectVisibilityOverrides[target.id] = action.visible;
-    return;
-  }
-  if (action.type === 'set-collision-enabled') {
+  } else if (action.type === 'set-collision-enabled') {
     setCollisionEnabled(world, target, action.enabled);
-    return;
-  }
-  if (action.type === 'activate-enemy') {
+  } else if (action.type === 'activate-enemy') {
     const enemy = world.enemies.find((candidate) => candidate.sourceObjectId === target.id);
-    if (!enemy || enemy.health <= 0) return;
-    enemy.removed = !action.active;
-    enemy.velocityX = 0;
-    return;
+    if (enemy && enemy.health > 0) {
+      enemy.removed = !action.active;
+      enemy.velocityX = 0;
+    }
+  } else if (action.type === 'start-dialogue') {
+    startRuntimeDialogue(world, target);
   }
-  if (action.type === 'start-dialogue') startRuntimeDialogue(world, target);
 }
 
 function updateTriggers(world: RuntimeWorld): void {
   const triggered = memory(world, 'triggeredObjectIds');
   const contacts = memory(world, 'activeTriggerContacts');
-
   for (const object of world.scene.objects) {
     if (object.type !== 'trigger' || !isRuntimeObjectVisible(world, object)) continue;
     const overlapping = intersects(world.player, bounds(object));
@@ -192,26 +178,10 @@ function updateTriggers(world: RuntimeWorld): void {
     if (contacts[object.id]) continue;
     contacts[object.id] = true;
     if (object.triggerOnce && triggered[object.id]) continue;
-
     triggered[object.id] = true;
     world.lastTriggerId = object.triggerId?.trim() || object.id;
     for (const action of object.triggerActions ?? []) executeTriggerAction(world, action);
   }
-}
-
-function updateDialogues(world: RuntimeWorld, delta: number): void {
-  if (world.activeDialogue) {
-    updateActiveDialogue(world, delta);
-    return;
-  }
-  const dialogue = world.scene.objects.find((object) =>
-    object.type === 'dialogue-zone'
-    && isRuntimeObjectVisible(world, object)
-    && intersects(world.player, bounds(object))
-    && !(object.dialogueOnce && memory(world, 'completedDialogueIds')[object.id])
-  );
-  if (!dialogue) return;
-  startRuntimeDialogue(world, dialogue, !dialogue.dialogueLines?.length);
 }
 
 function updateCollectibles(world: RuntimeWorld): void {
@@ -221,14 +191,11 @@ function updateCollectibles(world: RuntimeWorld): void {
     if (world.player.mode !== 'dead' && intersects(world.player, bounds(object))) collected[object.id] = true;
   }
   world.collectiblesRemaining = world.scene.objects.filter((object) =>
-    object.type === 'collectible'
-    && isRuntimeObjectVisible(world, object)
-    && !collected[object.id]
+    object.type === 'collectible' && isRuntimeObjectVisible(world, object) && !collected[object.id]
   ).length;
 }
 
 export function updateRuntimeAdvancedObjects(world: RuntimeWorld, delta = 0): void {
-  updateActiveDialogue(world, delta);
   updateNoCollisionZone(world);
   updateDropZones(world);
   updateTriggers(world);
