@@ -1,10 +1,9 @@
-import type { CampaignProgress, DialogueAdvanceMode, DialogueLine, ElFuegoProject, ProjectScene } from '../types/project';
+import type { CampaignProgress, DialogueAdvanceMode, DialogueLine, ElFuegoProject, ProjectScene, SceneBackgroundSettings } from '../types/project';
 import type { RuntimeObjectMemory } from './RuntimeAdvancedObjects';
 import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
 import type { RuntimePickupMemory, RuntimePickupState } from './RuntimePickup';
 import type { RuntimePlayerState } from './RuntimePlayer';
-import type { RuntimeSequenceSegment } from './RuntimeProjectLoader';
 
 export type RuntimeBounds = { x: number; y: number; width: number; height: number };
 export type RuntimeCameraState = { x: number; y: number; viewportWidth: number; viewportHeight: number };
@@ -14,6 +13,7 @@ export type RuntimeDialogueState = { objectId: string; lines: DialogueLine[]; li
 export type RuntimeCameraOverride = { x: number; y: number; remaining: number };
 export type RuntimeVariableValue = string | number | boolean;
 export type RuntimePendingSceneTransition = { sceneId: string; entryId?: string };
+export type RuntimeSequenceSegment = { sceneId: string; name: string; x: number; width: number; height: number; backgroundAssetId: string | null; background: SceneBackgroundSettings };
 
 export type RuntimeWorld = {
   project: ElFuegoProject;
@@ -51,6 +51,7 @@ export type RuntimeWorld = {
   input: RuntimeInputSnapshot;
   paused: boolean;
   completed: boolean;
+  gameOverReason?: 'fall' | 'no-lives';
   physicsSteps: number;
   accumulator: number;
   droppedPhysicsTime: number;
