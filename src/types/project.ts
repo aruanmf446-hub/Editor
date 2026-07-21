@@ -25,6 +25,8 @@ export interface BossPhaseDefinition { id: string; name: string; healthThreshold
 export type DialogueAdvanceMode = 'manual' | 'auto' | 'both';
 export interface DialogueLine { id: string; speaker: string; text: string; portraitAssetId?: AssetId; durationMs?: number; }
 
+export type CollectibleKind = 'coin' | 'key' | 'story-item' | 'custom';
+
 export type TriggerAction =
   | { id: string; type: 'set-object-visible'; targetObjectId: ObjectId; visible: boolean }
   | { id: string; type: 'set-collision-enabled'; targetObjectId: ObjectId; enabled: boolean }
@@ -50,12 +52,14 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
   triggerOnce?: boolean; triggerId?: string; triggerActions?: TriggerAction[];
   dialogueLines?: DialogueLine[]; dialogueBlockPlayer?: boolean; dialogueAdvanceMode?: DialogueAdvanceMode; dialogueOnce?: boolean;
-  endingMode?: FinishEndingMode; targetSceneId?: string; targetEntryId?: string; requiresAllCollectibles?: boolean;
+  collectibleKind?: CollectibleKind; collectibleValue?: number; collectibleDisplayName?: string; collectibleIconAssetId?: AssetId; collectibleObjectiveId?: string; collectibleRequired?: boolean;
+  endingMode?: FinishEndingMode; targetSceneId?: string; targetEntryId?: string; requiresAllCollectibles?: boolean; requiredCollectibleObjectiveIds?: string[];
 }
 export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; entryId?: string; defaultEntry?: boolean; initialHealth: number; initialAttack: number; initialDefense: number; animationAssignments?: PlayerAnimationAssignments; }
 export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; enemyAnimationAssignments?: EnemyAnimationAssignments; }
 export interface BossObject extends SceneObjectBase<'boss'> { direction: 'left' | 'right'; bossHealth: number; bossPhaseCount: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[]; enemyAnimationAssignments?: EnemyAnimationAssignments; }
 export interface PlatformObject extends SceneObjectBase<'platform'> { collisionType: 'solid' | 'one-way' | 'none'; passThrough: boolean; visibleInGame: boolean; }
-export type KnownSceneObject = PlayerSpawnObject | CactusObject | BossObject | PlatformObject | SceneObjectBase;
+export interface CollectibleObject extends SceneObjectBase<'collectible'> { collectibleKind?: CollectibleKind; collectibleValue?: number; collectibleDisplayName?: string; collectibleIconAssetId?: AssetId; collectibleObjectiveId?: string; collectibleRequired?: boolean; }
+export type KnownSceneObject = PlayerSpawnObject | CactusObject | BossObject | PlatformObject | CollectibleObject | SceneObjectBase;
 export interface ProjectScene { id: SceneId; name: string; order: number; width: number; height: number; backgroundAssetId: AssetId | null; background: SceneBackgroundSettings; objects: KnownSceneObject[]; }
 export interface ElFuegoProject { format: typeof EL_FUEGO_PROJECT_FORMAT; version: typeof EL_FUEGO_PROJECT_VERSION; project: ProjectMetadata; settings: ProjectSettings; assets: ProjectAsset[]; scenes: ProjectScene[]; }
