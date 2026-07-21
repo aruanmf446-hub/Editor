@@ -44,17 +44,17 @@ export function EditorHeader({ mode, onModeChange }: EditorHeaderProps) {
     <header className="topbar">
       <div className="brand"><strong>El Fuego Studio</strong><span>{project.project.name}</span></div>
       <div className="header-center">
-        <button disabled={!past.length || mode === 'test'} onClick={undo} title="Desfazer (Ctrl+Z)">↶</button>
-        <button disabled={!future.length || mode === 'test'} onClick={redo} title="Refazer (Ctrl+Y)">↷</button>
+        <button disabled={!past.length || mode === 'test'} onClick={undo} title="Desfazer (Ctrl+Z)" aria-label="Desfazer">↶</button>
+        <button disabled={!future.length || mode === 'test'} onClick={redo} title="Refazer (Ctrl+Y)" aria-label="Refazer">↷</button>
         <button className={`mode ${mode === 'edit' ? 'active' : ''}`} onClick={() => onModeChange('edit')}>Editar</button>
         <button className={`mode ${mode === 'test' ? 'active test-active' : ''}`} onClick={() => onModeChange('test')}>Testar</button>
       </div>
       <div className="actions">
         <input ref={inputRef} hidden type="file" accept=".elfuego" onChange={(event) => void openFile(event.target.files?.[0])} />
-        <button type="button" onClick={createNew} disabled={mode === 'test'}>Novo</button>
-        <button type="button" onClick={() => inputRef.current?.click()} disabled={mode === 'test'}>Abrir</button>
-        <button type="button" onClick={() => void exportFile()} disabled={mode === 'test'}>Exportar</button>
-        <button type="button" className="primary" onClick={() => void save()} disabled={mode === 'test'}>Salvar</button>
+        <button type="button" className="header-action" onClick={createNew} disabled={mode === 'test'} title="Novo projeto" aria-label="Novo projeto"><span className="header-action-icon" aria-hidden="true">＋</span><span className="header-action-label">Novo</span></button>
+        <button type="button" className="header-action" onClick={() => inputRef.current?.click()} disabled={mode === 'test'} title="Abrir projeto" aria-label="Abrir projeto"><span className="header-action-icon" aria-hidden="true">↥</span><span className="header-action-label">Abrir</span></button>
+        <button type="button" className="header-action" onClick={() => void exportFile()} disabled={mode === 'test'} title="Exportar projeto" aria-label="Exportar projeto"><span className="header-action-icon" aria-hidden="true">↧</span><span className="header-action-label">Exportar</span></button>
+        <button type="button" className="header-action primary" onClick={() => void save()} disabled={mode === 'test'} title="Salvar projeto" aria-label="Salvar projeto"><span className="header-action-icon" aria-hidden="true">✓</span><span className="header-action-label">Salvar</span></button>
       </div>
     </header>
   );
