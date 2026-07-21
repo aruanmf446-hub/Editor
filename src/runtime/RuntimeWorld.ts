@@ -4,6 +4,7 @@ import type { RuntimeEnemyState } from './RuntimeEnemy';
 import type { RuntimeInputSnapshot } from './RuntimeInput';
 import type { RuntimePickupMemory, RuntimePickupState } from './RuntimePickup';
 import type { RuntimePlayerState } from './RuntimePlayer';
+import type { RuntimeSequenceSegment } from './RuntimeProjectLoader';
 
 export type RuntimeBounds = { x: number; y: number; width: number; height: number };
 export type RuntimeCameraState = { x: number; y: number; viewportWidth: number; viewportHeight: number };
@@ -17,6 +18,7 @@ export type RuntimePendingSceneTransition = { sceneId: string; entryId?: string 
 export type RuntimeWorld = {
   project: ElFuegoProject;
   scene: ProjectScene;
+  sequenceSegments?: RuntimeSequenceSegment[];
   sceneRevision: number;
   currentLevelId?: string | null;
   campaignProgress?: CampaignProgress | null;
