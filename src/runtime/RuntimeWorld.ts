@@ -9,6 +9,7 @@ export type RuntimePlatformState = RuntimeBounds & { id: string; oneWay: boolean
 export type RuntimeCheckpointState = {
   sceneId: string;
   objectId: string;
+  order: number;
   x: number;
   y: number;
   respawnHealth: number;
