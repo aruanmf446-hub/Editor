@@ -8,6 +8,8 @@ import { updateCamera } from './systems/CameraSystem';
 
 export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   if (world.paused) return;
+  world.player.renderPreviousX = world.player.x;
+  world.player.renderPreviousY = world.player.y;
   updatePlayerCombat(world, delta);
   updatePlayerMovement(world, delta);
   if (world.player.mode !== 'dead') {
