@@ -8,6 +8,7 @@ import './styles/editor-config-panels.css';
 import './styles/runtime-enemies.css';
 import './styles/runtime-pickups.css';
 import './styles/runtime-advanced.css';
+import './styles/sequence-performance.css';
 import './styles/responsive.css';
 import './styles/responsive-tablet.css';
 
