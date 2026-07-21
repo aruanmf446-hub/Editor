@@ -71,9 +71,11 @@ function createWorld(playerX = 700, cactusPatch: Partial<SceneObjectBase> = {}):
   return {
     project,
     scene,
+    sceneRevision: 0,
     player: createRuntimePlayer(spawn),
     enemies: createRuntimeEnemies(scene),
     platforms: createRuntimePlatforms(scene),
+    activeCheckpoint: null,
     camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false },
     paused: false,
