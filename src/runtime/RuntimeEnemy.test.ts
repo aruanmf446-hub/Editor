@@ -184,6 +184,7 @@ describe('RuntimeEnemy', () => {
     expect(boss.phase).toBe(2);
     expect(boss.mode).toBe('phase-transition');
     expect(boss.visualState).toBe('phase-transition');
+    world.player.x = 600;
     updateRuntimeEnemies(world, 0.5);
     updateRuntimeEnemies(world, 1 / 60);
     expect(Math.abs(boss.velocityX)).toBeCloseTo(125);
