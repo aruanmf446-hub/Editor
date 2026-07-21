@@ -75,9 +75,11 @@ export function RuntimeGame({ onExit }: Props) {
   const fallbackWorld: RuntimeWorld = {
     project: loadResult.project,
     scene: loadResult.initialScene,
+    sceneRevision: 0,
     player: createRuntimePlayer(loadResult.spawn),
     enemies: createRuntimeEnemies(loadResult.initialScene),
     platforms: createRuntimePlatforms(loadResult.initialScene),
+    activeCheckpoint: null,
     camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
     input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false },
     paused: false,
@@ -95,30 +97,32 @@ export function RuntimeGame({ onExit }: Props) {
 
   const togglePause = () => {
     const controller = controllerRef.current;
-    if (!controller) return;
+    if (!controller || world.completed) return;
     if (controller.getPauseReason()) controller.resume(); else controller.pause('manual');
     setPauseReason(controller.getPauseReason());
   };
 
   return <section className="runtime-game">
-    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span><button onClick={togglePause}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
+    <div className="runtime-hud"><span>Vida {player.health}</span><span>Ataque {player.attack}</span><span>Defesa {player.defense}</span><span>{scene.name}</span>{world.activeCheckpoint && <span>Checkpoint {world.activeCheckpoint.order}</span>}<button onClick={togglePause} disabled={world.completed}>{pauseReason ? 'Continuar' : 'Pausar'}</button><button onClick={() => setDebug((value) => !value)}>Debug</button><button onClick={onExit}>Sair</button></div>
     <div ref={viewportRef} className="runtime-viewport" style={{ position: 'relative' }}>
       <div className="runtime-world" style={{ width: scene.width, height: scene.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}>
         {backgroundUrl && <img className="runtime-background" src={backgroundUrl} alt="" style={{ objectFit, objectPosition: `${background.positionX}% ${background.positionY}%`, transform: `scale(${background.scale})` }} />}
-        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
+        {scene.objects.filter((object) => object.visible && !object.editorOnly && object.type !== 'player-spawn' && object.type !== 'enemy-cactus').map((object) => <div key={object.id} className={`runtime-entity runtime-${object.type}${world.activeCheckpoint?.objectId === object.id ? ' runtime-checkpoint-active' : ''}`} style={{ left: object.transform.x, top: object.transform.y, width: object.transform.width, height: object.transform.height }}><span>{object.name}</span></div>)}
         <RuntimeEnemiesLayer world={world} />
         {debug && world.platforms.map((platform) => <div key={`debug-${platform.id}`} className={`runtime-debug-collider ${platform.oneWay ? 'one-way' : 'solid'}`} style={{ left: platform.x, top: platform.y, width: platform.width, height: platform.height }} />)}
         {debug && <div className="runtime-debug-previous" style={{ left: player.previousX, top: player.previousY, width: player.width, height: player.height }} />}
         {playerModelStatus !== 'ready' && <div className={`runtime-player runtime-player--${player.visualState}`} style={{ left: player.x, top: player.y, width: player.width, height: player.height }}><span>🔥</span></div>}
       </div>
       <RuntimePlayerModel
-        assetId={loadResult.spawn.assetId}
-        animationAssignments={loadResult.spawn.animationAssignments}
+        key={`${world.sceneRevision}-${player.assetId ?? 'sem-modelo'}`}
+        assetId={player.assetId}
+        animationAssignments={player.animationAssignments}
         world={world}
         onStatusChange={setPlayerModelStatus}
       />
     </div>
-    {pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}
+    {world.completed && <div className="runtime-pause runtime-complete"><h2>Jogo concluído</h2><p>{scene.name} finalizada.</p><button onClick={onExit}>Voltar ao editor</button></div>}
+    {!world.completed && pauseReason && <div className="runtime-pause"><h2>Teste pausado</h2><button onClick={togglePause}>Continuar</button><button onClick={onExit}>Sair do teste</button></div>}
     {debug && <RuntimeDebugOverlay fps={view?.fps ?? 0} world={world} />}
   </section>;
 }
