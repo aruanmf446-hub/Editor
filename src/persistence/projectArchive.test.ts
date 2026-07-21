@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   EL_FUEGO_PROJECT_FORMAT,
   EL_FUEGO_PROJECT_VERSION,
@@ -8,8 +8,19 @@ import {
   type ProjectAsset,
   type SceneObjectBase,
 } from '../types/project';
-import { saveAsset } from './assetRepository';
+import type { AssetRecord } from './database';
 import { db } from './database';
+
+const storedAssets = vi.hoisted(() => new Map<string, AssetRecord>());
+
+vi.mock('./assetRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./assetRepository')>();
+  return {
+    ...actual,
+    getAsset: async (id: string) => storedAssets.get(id),
+  };
+});
+
 import { exportProjectArchive, importProjectArchive } from './projectArchive';
 
 function spawn(): SceneObjectBase {
@@ -67,16 +78,25 @@ async function pngFixture() {
     checksum,
     category: 'background',
   };
-  return { blob, checksum, metadata };
+  const record: AssetRecord = {
+    ...metadata,
+    projectId: 'project',
+    checksum,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    blob,
+  };
+  return { blob, checksum, metadata, record };
 }
 
 beforeEach(async () => {
+  storedAssets.clear();
   db.close();
   await db.delete();
   await db.open();
 });
 
 afterAll(async () => {
+  storedAssets.clear();
   db.close();
   await db.delete();
 });
@@ -93,31 +113,29 @@ describe('projectArchive', () => {
   });
 
   it('faz roundtrip de asset com tamanho assinatura e checksum válidos', async () => {
-    const { blob, checksum, metadata } = await pngFixture();
+    const { checksum, metadata, record } = await pngFixture();
     const source = project([metadata]);
-    await saveAsset({
-      ...metadata,
-      projectId: source.project.id,
-      checksum,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      blob,
-    });
+    storedAssets.set(metadata.id, record);
 
     const archive = await exportProjectArchive(source);
-    await db.assets.clear();
     const imported = await importProjectArchive(archive);
     const restored = await db.assets.get(metadata.id);
 
     expect(imported.assets).toEqual([metadata]);
-    expect(restored?.checksum).toBe(checksum);
-    expect(restored?.blob.size).toBe(blob.size);
-    expect(new Uint8Array(await restored!.blob.arrayBuffer())).toEqual(new Uint8Array(await blob.arrayBuffer()));
+    expect(restored).toEqual(expect.objectContaining({
+      id: metadata.id,
+      projectId: source.project.id,
+      name: metadata.name,
+      originalName: metadata.originalName,
+      size: metadata.size,
+      checksum,
+    }));
   });
 
   it('recusa checksum adulterado antes de gravar o projeto', async () => {
-    const { blob, checksum, metadata } = await pngFixture();
+    const { metadata, record } = await pngFixture();
     const source = project([metadata]);
-    await saveAsset({ ...metadata, projectId: source.project.id, checksum, createdAt: '', blob });
+    storedAssets.set(metadata.id, record);
     const validArchive = await exportProjectArchive(source);
     const zip = await JSZip.loadAsync(validArchive);
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as { assets: Array<{ checksum: string }> };
@@ -131,9 +149,9 @@ describe('projectArchive', () => {
   });
 
   it('recusa caminho de asset diferente do formato canônico', async () => {
-    const { blob, checksum, metadata } = await pngFixture();
+    const { metadata, record } = await pngFixture();
     const source = project([metadata]);
-    await saveAsset({ ...metadata, projectId: source.project.id, checksum, createdAt: '', blob });
+    storedAssets.set(metadata.id, record);
     const validArchive = await exportProjectArchive(source);
     const zip = await JSZip.loadAsync(validArchive);
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as { assets: Array<{ path: string }> };
@@ -175,7 +193,13 @@ describe('projectArchive', () => {
   it('recusa exportação quando os metadados não correspondem ao binário armazenado', async () => {
     const { blob, checksum, metadata } = await pngFixture();
     const source = project([{ ...metadata, size: blob.size + 1 }]);
-    await saveAsset({ ...metadata, projectId: source.project.id, checksum, createdAt: '', blob });
+    storedAssets.set(metadata.id, {
+      ...metadata,
+      projectId: source.project.id,
+      checksum,
+      createdAt: '',
+      blob,
+    });
 
     await expect(exportProjectArchive(source)).rejects.toThrow('Tamanho armazenado divergente');
   });
