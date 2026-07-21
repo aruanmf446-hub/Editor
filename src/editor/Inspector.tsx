@@ -21,6 +21,7 @@ type NumericObjectKey =
   | 'attackDistance'
   | 'damage'
   | 'attackCooldownMs'
+  | 'enemyHealth'
   | 'bossHealth'
   | 'bossPhaseCount'
   | 'checkpointOrder'
@@ -58,6 +59,19 @@ export function Inspector() {
         value={target[key] ?? 0}
         onChange={(event) => updateNumericObjectField(target, key, Number(event.target.value))}
       />
+    </label>
+  );
+
+  const directionField = (target: SceneObjectBase) => (
+    <label>
+      Direção
+      <select
+        value={target.direction ?? 'left'}
+        onChange={(event) => updateObject(target.id, { direction: event.target.value as 'left' | 'right' })}
+      >
+        <option value="left">Esquerda</option>
+        <option value="right">Direita</option>
+      </select>
     </label>
   );
 
@@ -166,17 +180,9 @@ export function Inspector() {
           {object.type === 'enemy-cactus' && (
             <>
               <h3>Cacto</h3>
-              <label>
-                Direção
-                <select
-                  value={object.direction ?? 'left'}
-                  onChange={(event) => updateObject(object.id, { direction: event.target.value as 'left' | 'right' })}
-                >
-                  <option value="left">Esquerda</option>
-                  <option value="right">Direita</option>
-                </select>
-              </label>
+              {directionField(object)}
               <div className="field-grid">
+                {numericField(object, 'Vida', 'enemyHealth', 1)}
                 {numericField(object, 'Limite esquerdo', 'patrolLeft')}
                 {numericField(object, 'Limite direito', 'patrolRight')}
                 {numericField(object, 'Área de visão', 'visionDistance', 0)}
@@ -192,10 +198,14 @@ export function Inspector() {
           {object.type === 'boss' && (
             <>
               <h3>Boss</h3>
+              {directionField(object)}
               <div className="field-grid">
                 {numericField(object, 'Vida', 'bossHealth', 1)}
                 {numericField(object, 'Fases', 'bossPhaseCount', 1)}
-                {numericField(object, 'Dano', 'damage', 0)}
+                {numericField(object, 'Área de visão', 'visionDistance', 0)}
+                {numericField(object, 'Vel. perseguição', 'runSpeed', 0)}
+                {numericField(object, 'Dist. ataque', 'attackDistance', 0)}
+                {numericField(object, 'Dano base', 'damage', 0)}
                 {numericField(object, 'Intervalo ms', 'attackCooldownMs', 1)}
               </div>
             </>
