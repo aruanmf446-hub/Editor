@@ -92,7 +92,10 @@ export function RuntimePlayerModel({ assetId, world, onStatusChange }: Props) {
   const worldRef = useRef(world);
   const loadGenerationRef = useRef(0);
   const [status, setStatus] = useState<RuntimePlayerModelStatus>('loading');
-  worldRef.current = world;
+
+  useEffect(() => {
+    worldRef.current = world;
+  }, [world]);
 
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
 
