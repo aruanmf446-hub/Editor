@@ -32,6 +32,8 @@ export type RuntimePlayerState = {
   defense: number;
   coyoteRemaining: number;
   jumpBufferRemaining: number;
+  doubleJumpEnabled: boolean;
+  airJumpsRemaining: number;
   mode: RuntimePlayerMode;
   visualState: RuntimePlayerVisualState;
   attackSerial: number;
@@ -48,6 +50,7 @@ export type RuntimePlayerState = {
 /** player-spawn x/y represent the top-left corner of the initial player hitbox. */
 export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState {
   const health = spawn.initialHealth ?? 3;
+  const doubleJumpEnabled = Boolean(spawn.doubleJumpEnabled);
   return {
     x: spawn.transform.x,
     y: spawn.transform.y,
@@ -74,6 +77,8 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     defense: spawn.initialDefense ?? 1,
     coyoteRemaining: 0,
     jumpBufferRemaining: 0,
+    doubleJumpEnabled,
+    airJumpsRemaining: doubleJumpEnabled ? 1 : 0,
     mode: 'fall',
     visualState: 'fall',
     attackSerial: 0,
@@ -130,6 +135,7 @@ export function resetPlayerAtSpawn(player: RuntimePlayerState): void {
   player.crouching = false;
   player.coyoteRemaining = 0;
   player.jumpBufferRemaining = 0;
+  player.airJumpsRemaining = player.doubleJumpEnabled ? 1 : 0;
   player.mode = 'fall';
   player.visualState = 'fall';
   player.attackElapsed = 0;
