@@ -8,26 +8,11 @@ import type { RuntimePlayerState } from './RuntimePlayer';
 export type RuntimeBounds = { x: number; y: number; width: number; height: number };
 export type RuntimeCameraState = { x: number; y: number; viewportWidth: number; viewportHeight: number };
 export type RuntimePlatformState = RuntimeBounds & { id: string; oneWay: boolean };
-export type RuntimeCheckpointState = {
-  sceneId: string;
-  objectId: string;
-  order: number;
-  x: number;
-  y: number;
-  respawnHealth: number;
-};
-export type RuntimeDialogueState = {
-  objectId: string;
-  lines: DialogueLine[];
-  lineIndex: number;
-  lineElapsed: number;
-  advanceMode: DialogueAdvanceMode;
-  blockPlayer: boolean;
-  once: boolean;
-  contactOnly?: boolean;
-};
+export type RuntimeCheckpointState = { sceneId: string; objectId: string; order: number; x: number; y: number; respawnHealth: number };
+export type RuntimeDialogueState = { objectId: string; lines: DialogueLine[]; lineIndex: number; lineElapsed: number; advanceMode: DialogueAdvanceMode; blockPlayer: boolean; once: boolean; contactOnly?: boolean };
 export type RuntimeCameraOverride = { x: number; y: number; remaining: number };
 export type RuntimeVariableValue = string | number | boolean;
+export type RuntimePendingSceneTransition = { sceneId: string; entryId?: string };
 
 export type RuntimeWorld = {
   project: ElFuegoProject;
@@ -51,7 +36,7 @@ export type RuntimeWorld = {
   dialogueAdvanceRequested?: boolean;
   lastTriggerId?: string | null;
   playerNoCollision?: boolean;
-  pendingSceneTransitionId?: string | null;
+  pendingSceneTransition?: RuntimePendingSceneTransition | null;
   cameraOverride?: RuntimeCameraOverride | null;
   camera: RuntimeCameraState;
   input: RuntimeInputSnapshot;
@@ -67,12 +52,5 @@ export type RuntimeWorld = {
 export function createRuntimePlatforms(scene: ProjectScene): RuntimePlatformState[] {
   return scene.objects
     .filter((object) => object.visible && (object.type === 'platform' || object.type === 'wall' || object.type === 'obstacle'))
-    .map((object) => ({
-      id: object.id,
-      x: object.transform.x,
-      y: object.transform.y,
-      width: object.transform.width,
-      height: object.transform.height,
-      oneWay: object.type === 'platform' && Boolean(object.passThrough),
-    }));
+    .map((object) => ({ id: object.id, x: object.transform.x, y: object.transform.y, width: object.transform.width, height: object.transform.height, oneWay: object.type === 'platform' && Boolean(object.passThrough) }));
 }
