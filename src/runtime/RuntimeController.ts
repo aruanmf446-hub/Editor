@@ -3,6 +3,7 @@ import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { createRuntimeEnemies } from './RuntimeEnemy';
 import { RuntimeInput } from './RuntimeInput';
 import { RuntimeLoop, type RuntimeFrame } from './RuntimeLoop';
+import { createRuntimePickups } from './RuntimePickup';
 import { updateRuntimeWorld } from './RuntimePhysics';
 import { createRuntimePlayer } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
@@ -23,12 +24,15 @@ export class RuntimeController {
 
   constructor(private readonly options: Options) {
     const { snapshot } = options;
+    const pickupMemory = {};
     this.world = {
       project: snapshot.project,
       scene: snapshot.initialScene,
       sceneRevision: 0,
       player: createRuntimePlayer(snapshot.spawn),
       enemies: createRuntimeEnemies(snapshot.initialScene),
+      pickups: createRuntimePickups(snapshot.initialScene, pickupMemory),
+      pickupMemory,
       platforms: createRuntimePlatforms(snapshot.initialScene),
       activeCheckpoint: null,
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
