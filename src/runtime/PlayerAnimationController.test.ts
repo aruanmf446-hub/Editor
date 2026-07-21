@@ -117,9 +117,11 @@ describe('PlayerAnimationController', () => {
 
     controller.transitionTo('walk', { fade: 0 });
     controller.update(0.5);
+    const walkAction = controller.mixer.clipAction(walk);
+    const gaitPhase = walkAction.time / walk.duration;
     controller.transitionTo('run', { fade: 0 });
 
-    expect(controller.mixer.clipAction(run).time).toBeCloseTo(0.25);
+    expect(controller.mixer.clipAction(run).time).toBeCloseTo(gaitPhase * run.duration);
     controller.dispose();
   });
 
