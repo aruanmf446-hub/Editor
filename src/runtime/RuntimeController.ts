@@ -29,6 +29,7 @@ export class RuntimeController {
     this.world = {
       project: snapshot.project,
       scene: snapshot.initialScene,
+      sequenceSegments: snapshot.sequenceSegments,
       sceneRevision: 0,
       currentLevelId: snapshot.levelId,
       campaignProgress: options.progress ? structuredClone(options.progress) : null,
@@ -109,10 +110,6 @@ export class RuntimeController {
     }
     this.world.physicsSteps = steps;
     this.world.accumulator = this.accumulator;
-
-    // O loop já é dirigido por requestAnimationFrame. Emitir somente a 30 Hz fazia a
-    // câmera e os elementos React avançarem em saltos, embora o contador mostrasse 60 FPS.
-    // Mantemos a física fixa em 60 Hz e apresentamos cada frame do navegador.
     this.emit(frame.fps);
   };
   private emit(fps: number): void { if (!this.disposed) this.options.onRender({ world: this.world, fps }); }
