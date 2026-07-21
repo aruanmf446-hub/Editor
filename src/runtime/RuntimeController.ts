@@ -1,4 +1,5 @@
 import type { RuntimeProjectSnapshot } from './RuntimeProjectLoader';
+import { resetRuntimeSceneObjectState } from './RuntimeAdvancedObjects';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import { createRuntimeEnemies } from './RuntimeEnemy';
 import { RuntimeInput } from './RuntimeInput';
@@ -10,7 +11,6 @@ import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
 
 export type RuntimePauseReason = 'manual' | 'blur' | null;
 export type RuntimeControllerSnapshot = { world: RuntimeWorld; fps: number };
-
 type Options = { snapshot: RuntimeProjectSnapshot; onRender: (snapshot: RuntimeControllerSnapshot) => void };
 
 export class RuntimeController {
@@ -38,14 +38,22 @@ export class RuntimeController {
       collectedObjectIds: {},
       triggeredObjectIds: {},
       activeTriggerContacts: {},
+      completedDialogueIds: {},
+      objectVisibilityOverrides: {},
+      collisionEnabledOverrides: {},
+      variables: {},
       collectiblesRemaining: snapshot.initialScene.objects.filter((object) => object.type === 'collectible' && object.visible && !object.editorOnly).length,
       activeDialogue: null,
+      dialogueAdvanceRequested: false,
       lastTriggerId: null,
       playerNoCollision: false,
+      pendingSceneTransitionId: null,
+      cameraOverride: null,
       camera: { x: 0, y: 0, viewportWidth: 960, viewportHeight: 540 },
       input: this.input.snapshot(), paused: false, completed: false,
       physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0,
     };
+    resetRuntimeSceneObjectState(this.world);
     this.loop = new RuntimeLoop(this.frame);
   }
 
@@ -57,6 +65,10 @@ export class RuntimeController {
   resume(): void {
     if (this.disposed || this.world.completed) return;
     this.pauseReason = null; this.world.paused = false; this.clearAccumulator(); this.input.resetEdges(); this.loop.setPaused(false);
+  }
+  advanceDialogue(): void {
+    if (this.disposed || !this.world.activeDialogue || this.world.activeDialogue.contactOnly) return;
+    this.world.dialogueAdvanceRequested = true;
   }
   resize(width: number, height: number): void { this.world.camera.viewportWidth = Math.max(1, width); this.world.camera.viewportHeight = Math.max(1, height); }
   getWorld(): RuntimeWorld { return this.world; }
