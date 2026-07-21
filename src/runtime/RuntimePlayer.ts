@@ -34,6 +34,7 @@ export type RuntimePlayerState = {
   jumpBufferRemaining: number;
   mode: RuntimePlayerMode;
   visualState: RuntimePlayerVisualState;
+  attackSerial: number;
   attackElapsed: number;
   attackCooldownRemaining: number;
   attackHitbox: RuntimeBounds | null;
@@ -75,6 +76,7 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     jumpBufferRemaining: 0,
     mode: 'fall',
     visualState: 'fall',
+    attackSerial: 0,
     attackElapsed: 0,
     attackCooldownRemaining: 0,
     attackHitbox: null,
