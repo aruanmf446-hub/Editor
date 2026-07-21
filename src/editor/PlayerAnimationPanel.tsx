@@ -17,14 +17,19 @@ const roles: Array<{ role: PlayerAnimationRole; label: string }> = [
   { role: 'crouch', label: 'Agachar' },
 ];
 
+type LoadedClips = {
+  assetId: string;
+  clipNames: string[];
+  status: 'ready' | 'error';
+};
+
 export function PlayerAnimationPanel() {
   const project = useEditorStore((state) => state.project);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const selectedObjectId = useEditorStore((state) => state.selectedObjectId);
   const updateObject = useEditorStore((state) => state.updateObject);
   const assets = useAssetStore((state) => state.assets);
-  const [clipNames, setClipNames] = useState<string[]>([]);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [loaded, setLoaded] = useState<LoadedClips | null>(null);
 
   const object = useMemo(() => {
     const scene = project.scenes.find((candidate) => candidate.id === selectedSceneId);
@@ -32,35 +37,36 @@ export function PlayerAnimationPanel() {
   }, [project, selectedObjectId, selectedSceneId]);
 
   const asset = object?.assetId ? assets.find((candidate) => candidate.id === object.assetId) : undefined;
+  const isPlayerModel = object?.type === 'player-spawn' && asset?.category === 'model';
 
   useEffect(() => {
+    if (!isPlayerModel || !asset) return;
     let cancelled = false;
-    if (object?.type !== 'player-spawn' || !asset || asset.category !== 'model') {
-      setClipNames([]);
-      setStatus('idle');
-      return;
-    }
 
-    setStatus('loading');
     void asset.blob.arrayBuffer()
       .then((data) => new GLTFLoader().parseAsync(data, ''))
       .then((gltf) => {
         if (cancelled) return;
-        setClipNames(gltf.animations.map((clip, index) => clip.name || `Animação ${index + 1}`));
-        setStatus('ready');
+        setLoaded({
+          assetId: asset.id,
+          clipNames: gltf.animations.map((clip, index) => clip.name || `Animação ${index + 1}`),
+          status: 'ready',
+        });
       })
       .catch((error) => {
         if (cancelled) return;
         console.error('[animation-assignment] falha ao ler animações do GLB', error);
-        setClipNames([]);
-        setStatus('error');
+        setLoaded({ assetId: asset.id, clipNames: [], status: 'error' });
       });
 
     return () => { cancelled = true; };
-  }, [asset, object?.type]);
+  }, [asset, isPlayerModel]);
 
   if (object?.type !== 'player-spawn' || !object.assetId) return null;
 
+  const currentLoad = loaded?.assetId === object.assetId ? loaded : null;
+  const status: 'loading' | 'ready' | 'error' = currentLoad?.status ?? 'loading';
+  const clipNames = currentLoad?.clipNames ?? [];
   const assignments = object.animationAssignments ?? {};
   const assign = (role: PlayerAnimationRole, clipName: string) => {
     const next: PlayerAnimationAssignments = { ...assignments };

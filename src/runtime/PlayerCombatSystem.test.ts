@@ -35,7 +35,7 @@ function world(objects: SceneObjectBase[] = []): RuntimeWorld {
       defaultSceneHeight: 600,
     },
   };
-  return { project, scene, player: createRuntimePlayer(playerSpawn), platforms: createRuntimePlatforms(scene), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false };
+  return { project, scene, player: createRuntimePlayer(playerSpawn), enemies: [], platforms: createRuntimePlatforms(scene), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: { left: false, right: false, jump: false, crouch: false, attack: false, defend: false, jumpPressed: false, jumpReleased: false, attackPressed: false }, paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0, respawnFailure: false };
 }
 
 describe('player combat phase 3', () => {
