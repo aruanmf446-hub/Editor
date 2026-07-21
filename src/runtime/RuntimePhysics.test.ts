@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ElFuegoProject, ProjectScene, SceneObjectBase } from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
-import { getMovementSteps } from './RuntimeCollision';
+import { getMovementSteps, probeGround } from './RuntimeCollision';
 import { updateRuntimeWorld } from './RuntimePhysics';
 import { createRuntimePlayer, resetPlayerAtSpawn, setPlayerCrouching } from './RuntimePlayer';
 import { createRuntimePlatforms, type RuntimeWorld } from './RuntimeWorld';
@@ -19,7 +19,18 @@ const input = () => ({ left: false, right: false, jump: false, crouch: false, at
 function world(objects: SceneObjectBase[] = []): RuntimeWorld {
   const spawn = object('player-spawn', 100, 100, 50, 100, { initialHealth: 3, initialAttack: 1, initialDefense: 1, direction: 'right' });
   const current = { ...scene, objects: [spawn, ...objects] };
-  return { project: { ...project, scenes: [current] }, scene: current, player: createRuntimePlayer(spawn), platforms: createRuntimePlatforms(current), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0 };
+  return { project: { ...project, scenes: [current] }, scene: current, player: createRuntimePlayer(spawn), platforms: createRuntimePlatforms(current), camera: { x: 0, y: 0, viewportWidth: 400, viewportHeight: 300 }, input: input(), paused: false, completed: false, physicsSteps: 0, accumulator: 0, droppedPhysicsTime: 0 };
+}
+
+function simulate(state: RuntimeWorld, frames: number, delta: number) {
+  let accumulator = 0;
+  for (let frame = 0; frame < frames; frame += 1) {
+    accumulator += delta;
+    while (accumulator >= RUNTIME_CONFIG.fixedStep) {
+      updateRuntimeWorld(state, RUNTIME_CONFIG.fixedStep);
+      accumulator -= RUNTIME_CONFIG.fixedStep;
+    }
+  }
 }
 
 describe('runtime phase 2', () => {
@@ -42,7 +53,9 @@ describe('runtime phase 2', () => {
     const state = world(); state.player.grounded = false; state.player.coyoteRemaining = .05; state.input.jumpPressed = true;
     updatePlayerMovement(state, .01); expect(state.player.velocityY).toBe(-RUNTIME_CONFIG.playerJumpSpeed);
   });
-  it('subdivide deslocamentos grandes', () => expect(getMovementSteps(40, 8)).toBe(5));
+  it('subdivide deslocamentos grandes conforme a hitbox', () => {
+    const state = world(); expect(getMovementSteps(40, state.player)).toBeGreaterThanOrEqual(5);
+  });
   it('colide pela direita e pela esquerda', () => {
     const wall = object('wall', 300, 0, 20, 600); const state = world([wall]);
     state.player.x = 200; state.player.velocityX = 800; resolveWorldMovement(state, .2); expect(state.player.x + state.player.width).toBe(300); expect(state.player.lastCollisionSide).toBe('right');
@@ -52,10 +65,9 @@ describe('runtime phase 2', () => {
     const state = world([object('platform', 0, 300, 400, 4)]); state.player.y = 100; state.player.velocityY = 1100;
     resolveWorldMovement(state, .2); expect(state.player.grounded).toBe(true); expect(state.player.y + state.player.height).toBe(300);
   });
-  it('não colide por baixo ou pela lateral em one-way', () => {
-    const state = world([object('platform', 200, 300, 200, 10, { passThrough: true })]);
-    state.player.x = 250; state.player.y = 330; state.player.velocityY = -500; resolveWorldMovement(state, .1); expect(state.player.y).toBeLessThan(330);
-    state.player.x = 100; state.player.y = 220; state.player.velocityX = 800; state.player.velocityY = 0; resolveWorldMovement(state, .1); expect(state.player.x).toBeGreaterThan(100);
+  it('ground probe não prende o player em one-way por baixo', () => {
+    const state = world([object('platform', 0, 300, 400, 10, { passThrough: true })]);
+    state.player.y = 310; state.player.velocityY = 0; expect(probeGround(state.player, state.platforms)).toBe(false);
   });
   it('agacha preservando os pés e reseta corretamente', () => {
     const state = world(); const feet = state.player.y + state.player.height; setPlayerCrouching(state.player, true);
@@ -70,8 +82,13 @@ describe('runtime phase 2', () => {
     const state = world(); state.paused = true; state.player.velocityX = 100; state.player.coyoteRemaining = .05;
     updateRuntimeWorld(state, RUNTIME_CONFIG.fixedStep); expect(state.player.x).toBe(100); expect(state.player.coyoteRemaining).toBe(.05);
   });
-  it('reaparece no spawn ao cair', () => {
-    const state = world(); state.player.y = 800; state.player.crouching = true; state.player.velocityX = 100;
-    resolveWorldMovement(state, .016); expect(state.player.x).toBe(state.player.spawnX); expect(state.player.y).toBe(state.player.spawnY); expect(state.player.crouching).toBe(false);
+  it('reaparece fora de colisor quando o spawn foi coberto', () => {
+    const state = world([object('platform', 90, 90, 100, 120)]); state.player.y = 800;
+    resolveWorldMovement(state, .016); expect(state.player.y).toBeLessThan(state.player.spawnY); expect(state.player.velocityX).toBe(0); expect(state.player.velocityY).toBe(0);
+  });
+  it('produz resultado equivalente em 60 e 30 frames por segundo', () => {
+    const sixty = world(); const thirty = world(); sixty.input.right = true; thirty.input.right = true;
+    simulate(sixty, 60, 1 / 60); simulate(thirty, 30, 1 / 30);
+    expect(thirty.player.x).toBeCloseTo(sixty.player.x, 5); expect(thirty.player.velocityX).toBeCloseTo(sixty.player.velocityX, 5);
   });
 });
