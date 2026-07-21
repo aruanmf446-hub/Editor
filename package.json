@@ -29,6 +29,7 @@
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
+    "fake-indexeddb": "latest",
     "globals": "latest",
     "jsdom": "latest",
     "typescript": "latest",
