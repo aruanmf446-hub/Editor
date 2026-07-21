@@ -17,6 +17,11 @@ async function checksum(file: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
+function replaceProjectAssets(assets: ProjectAsset[]) {
+  const editor = useEditorStore.getState();
+  editor.setProject({ ...editor.project, assets, project: { ...editor.project.project, updatedAt: new Date().toISOString() } }, 'Alterações não salvas');
+}
+
 type AssetState = {
   assets: AssetRecord[];
   loading: boolean;
@@ -27,37 +32,32 @@ type AssetState = {
 };
 
 export const useAssetStore = create<AssetState>((set, get) => ({
-  assets: [],
-  loading: false,
-  load: async (projectId) => {
-    set({ loading: true });
-    set({ assets: await listAssets(projectId), loading: false });
-  },
+  assets: [], loading: false,
+  load: async (projectId) => { set({ loading: true }); set({ assets: await listAssets(projectId), loading: false }); },
   importFiles: async (files) => {
     const editor = useEditorStore.getState();
     const projectId = editor.project.project.id;
+    const metadata = [...editor.project.assets];
     for (const file of Array.from(files)) {
       const hash = await checksum(file);
       if (get().assets.some((asset) => asset.checksum === hash)) continue;
-      const record: AssetRecord = {
-        id: crypto.randomUUID(), projectId, name: file.name.replace(/\.[^.]+$/, ''), originalName: file.name,
-        category: classify(file), mimeType: file.type || 'application/octet-stream', size: file.size,
-        checksum: hash, createdAt: new Date().toISOString(), blob: file,
-      };
+      const record: AssetRecord = { id: crypto.randomUUID(), projectId, name: file.name.replace(/\.[^.]+$/, ''), originalName: file.name, category: classify(file), mimeType: file.type || 'application/octet-stream', size: file.size, checksum: hash, createdAt: new Date().toISOString(), blob: file };
       await saveAsset(record);
-      const metadata: ProjectAsset = { id: record.id, name: record.name, originalName: record.originalName, mimeType: record.mimeType, size: record.size, checksum: record.checksum, category: record.category };
-      editor.registerAsset(metadata);
+      metadata.push({ id: record.id, name: record.name, originalName: record.originalName, mimeType: record.mimeType, size: record.size, checksum: record.checksum, category: record.category });
     }
+    replaceProjectAssets(metadata);
     await get().load(projectId);
   },
   remove: async (id) => {
     await deleteAsset(id);
-    useEditorStore.getState().unregisterAsset(id);
+    const editor = useEditorStore.getState();
+    replaceProjectAssets(editor.project.assets.filter((asset) => asset.id !== id));
     set((state) => ({ assets: state.assets.filter((asset) => asset.id !== id) }));
   },
   rename: async (id, name) => {
     await renameAsset(id, name);
-    useEditorStore.getState().renameAssetMetadata(id, name);
+    const editor = useEditorStore.getState();
+    replaceProjectAssets(editor.project.assets.map((asset) => asset.id === id ? { ...asset, name } : asset));
     set((state) => ({ assets: state.assets.map((asset) => asset.id === id ? { ...asset, name } : asset) }));
   },
 }));
