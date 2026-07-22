@@ -9,6 +9,7 @@ import { applyGravity } from './systems/GravitySystem';
 import { resolveWorldMovement } from './systems/CollisionSystem';
 import { updateCamera } from './systems/CameraSystem';
 import { updateEnemyGravity } from './systems/EnemyGravitySystem';
+import { constrainEnemyMovement } from './systems/EnemyMovementConstraintSystem';
 import { enterRuntimeScene, updateRuntimeCheckpoints, updateRuntimeFinish } from './systems/RuntimeSceneSystem';
 
 function processPendingSceneTransition(world: RuntimeWorld): boolean {
@@ -46,6 +47,7 @@ export function updateRuntimeWorld(world: RuntimeWorld, delta: number) {
   updateRuntimeAdvancedObjects(world, 0);
   if (processPendingSceneTransition(world)) { updateCamera(world, delta); return; }
   updateRuntimeEnemies(world, delta);
+  constrainEnemyMovement(world);
   updateEnemyGravity(world, delta);
   updateRuntimePickups(world, delta);
   updateRuntimeCheckpoints(world);
