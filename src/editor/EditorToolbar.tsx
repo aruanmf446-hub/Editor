@@ -3,9 +3,9 @@ import { SelectionTools } from './SelectionTools';
 
 const groups = [
   { label: 'Fluxo', items: [['Spawn', 'player-spawn'], ['Fim', 'finish'], ['Checkpoint', 'checkpoint']] },
-  { label: 'Física', items: [['Plataforma', 'platform'], ['Parede', 'wall'], ['Queda', 'drop-zone']] },
+  { label: 'Física', items: [['Plataforma', 'platform'], ['Parede', 'wall']] },
   { label: 'Recargas', items: [['Vida', 'pickup-health'], ['Ataque', 'pickup-attack'], ['Defesa', 'pickup-defense']] },
-  { label: 'Inimigos', items: [['Cacto', 'enemy-cactus'], ['Boss', 'boss']] },
+  { label: 'Vilões', items: [['Vilão', 'enemy-cactus'], ['Boss', 'boss']] },
   { label: 'Objetos', items: [['Obstáculo', 'obstacle'], ['Decoração', 'decoration'], ['Gatilho', 'trigger']] },
 ] as const;
 
@@ -16,7 +16,9 @@ export function EditorToolbar() {
     <div className="tool-groups">
       {groups.map((group) => <div className="tool-menu" key={group.label}>
         <span>{group.label}</span>
-        {group.items.map(([label, type]) => <button key={type} onClick={() => addObject(type)}>{label}</button>)}
+        <div className="tool-menu-buttons">
+          {group.items.map(([label, type]) => <button key={type} onClick={() => addObject(type)}>{label}</button>)}
+        </div>
       </div>)}
       <div className="edit-actions" aria-label="Ações de edição">
         <button disabled={!selectedObjectIds.length} onClick={copySelected}>Copiar</button>
