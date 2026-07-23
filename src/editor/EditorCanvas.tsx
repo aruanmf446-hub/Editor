@@ -11,6 +11,7 @@ type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 type Interaction = { sceneId: string; objectId: string; objectIds: string[]; mode: 'move' | ResizeHandle; pointerId: number; startX: number; startY: number; startTransforms: Record<string, Transform2D>; beforeProject: ElFuegoProject };
 type SelectionBox = { sceneId: string; pointerId: number; startX: number; startY: number; x: number; y: number; width: number; height: number; additive: boolean };
 const handles: ResizeHandle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+const crossSceneTypes = new Set(['platform', 'wall', 'enemy-cactus', 'boss', 'obstacle', 'decoration', 'trigger', 'dialogue-zone', 'collectible']);
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 type EditorCanvasProps = { testMode?: boolean };
@@ -55,6 +56,14 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
 
   const snap = (value: number) => store.project.settings.snapEnabled ? Math.round(value / store.project.settings.gridSize) * store.project.settings.gridSize : Math.round(value);
 
+  const sceneHorizontalLimits = (scene: ProjectScene) => {
+    const ordered = store.project.scenes;
+    const index = ordered.findIndex((item) => item.id === scene.id);
+    const before = ordered.slice(0, Math.max(0, index)).reduce((sum, item) => sum + item.width, 0);
+    const after = ordered.slice(index + 1).reduce((sum, item) => sum + item.width, 0);
+    return { minimumX: -before, maximumRight: scene.width + after };
+  };
+
   const startObject = (event: ReactPointerEvent<HTMLElement>, scene: ProjectScene, object: SceneObjectBase, mode: 'move' | ResizeHandle) => {
     if (testMode) return;
     event.preventDefault(); event.stopPropagation();
@@ -88,8 +97,10 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
     let dx = (event.clientX - interaction.startX) / store.zoom;
     let dy = (event.clientY - interaction.startY) / store.zoom;
     const primary = interaction.startTransforms[interaction.objectId];
-    if (!primary) return;
+    const object = scene.objects.find((item) => item.id === interaction.objectId);
+    if (!primary || !object) return;
     const next: Record<string, Transform2D> = {};
+    const canCrossScenes = crossSceneTypes.has(object.type);
     if (interaction.mode === 'move') {
       const starts = Object.values(interaction.startTransforms);
       dx = clamp(dx, Math.max(...starts.map((item) => -item.x)), Math.min(...starts.map((item) => scene.width - item.x - item.width)));
@@ -100,14 +111,30 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
       setGuides({ vertical: Math.abs(current.x + current.width / 2 - scene.width / 2) <= 8 / store.zoom, horizontal: Math.abs(current.y + current.height / 2 - scene.height / 2) <= 8 / store.zoom });
     } else {
       const transform = { ...primary }, mode = interaction.mode, min = 32;
-      if (mode.includes('e')) transform.width = snap(clamp(primary.width + dx, min, scene.width - primary.x));
+      const limits = sceneHorizontalLimits(scene);
+      const maximumRight = canCrossScenes ? limits.maximumRight : scene.width;
+      const minimumX = canCrossScenes ? limits.minimumX : 0;
+      if (mode.includes('e')) transform.width = snap(clamp(primary.width + dx, min, maximumRight - primary.x));
       if (mode.includes('s')) transform.height = snap(clamp(primary.height + dy, min, scene.height - primary.y));
-      if (mode.includes('w')) { const right = primary.x + primary.width; transform.x = snap(clamp(primary.x + dx, 0, right - min)); transform.width = snap(Math.max(min, right - transform.x)); }
+      if (mode.includes('w')) { const right = primary.x + primary.width; transform.x = snap(clamp(primary.x + dx, minimumX, right - min)); transform.width = snap(Math.max(min, right - transform.x)); }
       if (mode.includes('n')) { const bottom = primary.y + primary.height; transform.y = snap(clamp(primary.y + dy, 0, bottom - min)); transform.height = snap(Math.max(min, bottom - transform.y)); }
       next[interaction.objectId] = transform;
       setGuides({ vertical: false, horizontal: false });
     }
-    store.previewObjectTransforms(next);
+    if (interaction.mode !== 'move' && canCrossScenes) {
+      useEditorStore.setState((state) => ({
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((candidate) => candidate.id !== scene.id ? candidate : {
+            ...candidate,
+            objects: candidate.objects.map((item) => next[item.id] ? { ...item, transform: next[item.id] } : item),
+          }),
+        },
+        saveStatus: 'Alterações não salvas',
+      }));
+    } else {
+      store.previewObjectTransforms(next);
+    }
   };
 
   const finish = (event: ReactPointerEvent<HTMLDivElement>, scene: ProjectScene) => {
@@ -147,7 +174,8 @@ export function EditorCanvas({ testMode = false }: EditorCanvasProps) {
             {scene.objects.filter((object) => object.visible && (!testMode || !object.editorOnly)).map((object, index) => {
               const selected = !testMode && store.selectedObjectIds.includes(object.id);
               const primary = !testMode && store.selectedObjectId === object.id;
-              return <div key={object.id} className={`canvas-object object-${object.type} ${selected ? 'selected' : ''} ${primary ? 'primary-selected' : ''} ${object.locked ? 'locked' : ''} ${testMode ? 'runtime-preview-object' : ''}`} style={{ left: object.transform.x * zoom, top: object.transform.y * zoom, width: object.transform.width * zoom, height: object.transform.height * zoom, transform: `rotate(${object.transform.rotation}deg)`, zIndex: index + 2 }} onPointerDown={(event) => startObject(event, scene, object, 'move')} onClick={(event) => event.stopPropagation()} title={object.name}>
+              const spansScenes = object.transform.x < 0 || object.transform.x + object.transform.width > scene.width;
+              return <div key={object.id} className={`canvas-object object-${object.type} ${selected ? 'selected' : ''} ${primary ? 'primary-selected' : ''} ${object.locked ? 'locked' : ''} ${testMode ? 'runtime-preview-object' : ''} ${spansScenes ? 'cross-scene-object' : ''}`} style={{ left: object.transform.x * zoom, top: object.transform.y * zoom, width: object.transform.width * zoom, height: object.transform.height * zoom, transform: `rotate(${object.transform.rotation}deg)`, zIndex: spansScenes ? 200 + index : index + 2 }} onPointerDown={(event) => startObject(event, scene, object, 'move')} onClick={(event) => event.stopPropagation()} title={object.name}>
                 <span className="object-symbol">{symbols[object.type] ?? '■'}</span><small>{object.name}</small>
                 {!testMode && object.assetId && store.project.assets.find((asset) => asset.id === object.assetId)?.category === 'model' && <em className="model-placeholder">Modelo vinculado · prévia 3D pendente</em>}
                 {primary && store.selectedObjectIds.length === 1 && !object.locked && handles.map((handle) => <span key={handle} className={`resize-handle handle-${handle}`} onPointerDown={(event) => startObject(event, scene, object, handle)} />)}
