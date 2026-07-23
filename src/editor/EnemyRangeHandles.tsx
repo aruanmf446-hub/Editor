@@ -42,8 +42,9 @@ export function EnemyRangeHandles({ scene, object, zoom }: Props) {
       if (pursuitMode && drag.kind === 'vision') {
         const centerX = object.transform.x + object.transform.width / 2;
         const maxX = Math.max(0, scene.width - object.transform.width);
-        patch.patrolLeft = clamp(centerX - draft.vision, 0, maxX);
-        patch.patrolRight = clamp(centerX + draft.vision - object.transform.width, patch.patrolLeft, maxX);
+        const pursuitLeft = clamp(centerX - draft.vision, 0, maxX);
+        patch.patrolLeft = pursuitLeft;
+        patch.patrolRight = clamp(centerX + draft.vision - object.transform.width, pursuitLeft, maxX);
       }
       updateObject(object.id, patch);
       setDrag(null);
