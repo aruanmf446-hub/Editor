@@ -29,6 +29,14 @@ export function AssetLibrary() {
     updateScene(selectedSceneId, { backgroundAssetId: asset.id });
   };
 
+  const createSceneFromImage = (asset: AssetRecord) => {
+    if (!asset.mimeType.startsWith('image/')) return;
+    const store = useEditorStore.getState();
+    store.addScene();
+    const newSceneId = useEditorStore.getState().selectedSceneId;
+    if (newSceneId) useEditorStore.getState().updateScene(newSceneId, { backgroundAssetId: asset.id });
+  };
+
   const instantiate = (asset: AssetRecord) => {
     if (asset.category === 'background') { applyBackground(asset); return; }
     if (asset.category === 'audio') return;
@@ -50,6 +58,7 @@ export function AssetLibrary() {
               const activeBackground = selectedScene?.backgroundAssetId === asset.id;
               return <article className={`asset-card ${activeBackground ? 'active-background' : ''}`} key={asset.id} onDoubleClick={() => instantiate(asset)} draggable onDragStart={(event) => event.dataTransfer.setData('application/x-elfuego-asset', asset.id)}>
                 <div className="asset-preview">{previewUrls[asset.id] ? <img src={previewUrls[asset.id]} alt="" /> : <span>{icons[asset.category]}</span>}</div>
+                {canBeBackground && <button className="asset-new-scene" title="Criar nova cena com esta imagem" aria-label={`Criar nova cena com ${asset.name}`} onClick={() => createSceneFromImage(asset)}>+</button>}
                 <button className="asset-name" title="Renomear" onClick={() => { const next = window.prompt('Nome do asset', asset.name); if (next?.trim()) void rename(asset.id, next.trim()); }}>{asset.name}</button>
                 <small>{Math.ceil(asset.size / 1024)} KB</small>
                 {canBeBackground && <button className="asset-background-button" disabled={activeBackground} onClick={() => applyBackground(asset)}>{activeBackground ? 'Fundo atual' : 'Usar como fundo'}</button>}
