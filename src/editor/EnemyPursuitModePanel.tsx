@@ -19,7 +19,7 @@ export function EnemyPursuitModePanel() {
     <div className="panel-title-row">
       <div>
         <h2>Modo perseguição</h2>
-        <span>O vilão espera até enxergar o player e depois corre atrás dele.</span>
+        <span>O vilão caminha na faixa de visão e corre atrás do player ao detectá-lo.</span>
       </div>
     </div>
     <label className="checkbox-field pursuit-mode-toggle">
@@ -28,14 +28,20 @@ export function EnemyPursuitModePanel() {
         checked={enabled}
         onChange={(event) => {
           const pursuitMode = event.target.checked;
+          const vision = Math.max(0, villain.visionDistance ?? 420);
+          const centerX = villain.transform.x + villain.transform.width / 2;
+          const maxX = Math.max(0, scene.width - villain.transform.width);
+          const patrolLeft = Math.max(0, Math.min(maxX, centerX - vision));
+          const patrolRight = Math.max(patrolLeft, Math.min(maxX, centerX + vision - villain.transform.width));
           updateObject(villain.id, {
             pursuitMode,
-            walkSpeed: pursuitMode ? 0 : (villain.walkSpeed || 70),
+            walkSpeed: villain.walkSpeed || 70,
+            ...(pursuitMode ? { patrolLeft, patrolRight } : {}),
           } as Partial<SceneObjectBase>);
         }}
       />
       Ativar modo perseguição
     </label>
-    {enabled && <p className="panel-hint">No cenário será exibido somente o campo de visão. Ao entrar nessa área, o player passa a ser perseguido.</p>}
+    {enabled && <p className="panel-hint">A mesma faixa azul define onde o vilão anda e até onde ele enxerga. Ao detectar o player, ele passa a persegui-lo.</p>}
   </section>;
 }
