@@ -34,7 +34,18 @@ export function EnemyRangeHandles({ scene, object, zoom }: Props) {
     };
     const finish = (event: PointerEvent) => {
       if (event.pointerId !== drag.pointerId) return;
-      updateObject(object.id, { patrolLeft: draft.left, patrolRight: draft.right, visionDistance: draft.vision });
+      const patch: Partial<SceneObjectBase> = {
+        patrolLeft: draft.left,
+        patrolRight: draft.right,
+        visionDistance: draft.vision,
+      };
+      if (pursuitMode && drag.kind === 'vision') {
+        const centerX = object.transform.x + object.transform.width / 2;
+        const maxX = Math.max(0, scene.width - object.transform.width);
+        patch.patrolLeft = clamp(centerX - draft.vision, 0, maxX);
+        patch.patrolRight = clamp(centerX + draft.vision - object.transform.width, patch.patrolLeft, maxX);
+      }
+      updateObject(object.id, patch);
       setDrag(null);
     };
     window.addEventListener('pointermove', move);
@@ -45,7 +56,7 @@ export function EnemyRangeHandles({ scene, object, zoom }: Props) {
       window.removeEventListener('pointerup', finish);
       window.removeEventListener('pointercancel', finish);
     };
-  }, [drag, draft.left, draft.right, draft.vision, object.id, object.transform.width, scene.width, updateObject, zoom]);
+  }, [drag, draft.left, draft.right, draft.vision, object.id, object.transform.width, object.transform.x, pursuitMode, scene.width, updateObject, zoom]);
 
   const begin = (kind: HandleKind) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -58,7 +69,7 @@ export function EnemyRangeHandles({ scene, object, zoom }: Props) {
   const centerX = object.transform.x + object.transform.width / 2;
   const patrolY = Math.min(scene.height - 18, object.transform.y + object.transform.height + 24);
   const visionY = Math.max(20, object.transform.y - 22);
-  return <div className="enemy-range-editor" aria-label="Alcance do vilão">
+  return <div className="enemy-range-editor" aria-label="Limites do vilão">
     {!pursuitMode && <div className="enemy-patrol-line" style={{ left: values.left * zoom, top: patrolY * zoom, width: Math.max(1, values.right - values.left) * zoom }}>
       <span>Andar</span>
       <button type="button" className="enemy-range-handle left" style={{ left: 0 }} onPointerDown={begin('patrol-left')} aria-label="Arrastar limite esquerdo de caminhada do vilão" />
