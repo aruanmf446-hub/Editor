@@ -5,12 +5,14 @@ import type { ProjectScene, SceneObjectBase } from '../types/project';
 type HandleKind = 'patrol-left' | 'patrol-right' | 'vision';
 type RangeValues = { left: number; right: number; vision: number };
 type DragState = { kind: HandleKind; pointerId: number; startClientX: number; startLeft: number; startRight: number; startVision: number };
+type PursuitVillain = SceneObjectBase<'enemy-cactus'> & { pursuitMode?: boolean };
 type Props = { scene: ProjectScene; object: SceneObjectBase<'enemy-cactus'>; zoom: number };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function EnemyRangeHandles({ scene, object, zoom }: Props) {
   const updateObject = useEditorStore((state) => state.updateObject);
+  const pursuitMode = Boolean((object as PursuitVillain).pursuitMode);
   const initial = useMemo<RangeValues>(() => {
     const maxX = Math.max(0, scene.width - object.transform.width);
     const left = clamp(object.patrolLeft ?? object.transform.x - 160, 0, maxX);
@@ -56,14 +58,14 @@ export function EnemyRangeHandles({ scene, object, zoom }: Props) {
   const centerX = object.transform.x + object.transform.width / 2;
   const patrolY = Math.min(scene.height - 18, object.transform.y + object.transform.height + 24);
   const visionY = Math.max(20, object.transform.y - 22);
-  return <div className="enemy-range-editor" aria-label="Limites do vilão">
-    <div className="enemy-patrol-line" style={{ left: values.left * zoom, top: patrolY * zoom, width: Math.max(1, values.right - values.left) * zoom }}>
+  return <div className="enemy-range-editor" aria-label="Alcance do vilão">
+    {!pursuitMode && <div className="enemy-patrol-line" style={{ left: values.left * zoom, top: patrolY * zoom, width: Math.max(1, values.right - values.left) * zoom }}>
       <span>Andar</span>
       <button type="button" className="enemy-range-handle left" style={{ left: 0 }} onPointerDown={begin('patrol-left')} aria-label="Arrastar limite esquerdo de caminhada do vilão" />
       <button type="button" className="enemy-range-handle right" style={{ right: 0 }} onPointerDown={begin('patrol-right')} aria-label="Arrastar limite direito de caminhada do vilão" />
-    </div>
+    </div>}
     <div className="enemy-vision-line" style={{ left: Math.max(0, centerX - values.vision) * zoom, top: visionY * zoom, width: Math.min(scene.width, values.vision * 2) * zoom }}>
-      <span>Visão {Math.round(values.vision)}</span>
+      <span>{pursuitMode ? 'Perseguição' : 'Visão'} {Math.round(values.vision)}</span>
       <i style={{ left: values.vision * zoom }} />
       <button type="button" className="enemy-range-handle vision" style={{ left: Math.min(scene.width - centerX, values.vision) * zoom + values.vision * zoom }} onPointerDown={begin('vision')} aria-label="Arrastar alcance de visão do vilão" />
     </div>
