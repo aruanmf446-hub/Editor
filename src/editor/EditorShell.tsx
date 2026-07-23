@@ -13,6 +13,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { EnemyActivationPanel } from './EnemyActivationPanel';
 import { EntryPointsPanel } from './EntryPointsPanel';
 import { Inspector } from './Inspector';
+import { ModelAssetPanel } from './ModelAssetPanel';
 import { ObjectTree } from './ObjectTree';
 import { PlayerAnimationPanel } from './PlayerAnimationPanel';
 import { PlayerGameplayPanel } from './PlayerGameplayPanel';
@@ -82,7 +83,7 @@ export function EditorShell() {
       <div className="editor-columns" data-responsive-panel={responsivePanel}>
         <div className="left-editor-stack"><ObjectTree /><AssetLibrary /></div>
         <EditorCanvas />
-        <div className="right-editor-stack"><Inspector /><PlayerGameplayPanel /><CollectibleObjectivesPanel /><CampaignPanel /><EntryPointsPanel /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
+        <div className="right-editor-stack"><Inspector /><ModelAssetPanel /><PlayerGameplayPanel /><CollectibleObjectivesPanel /><CampaignPanel /><EntryPointsPanel /><EnemyActivationPanel /><PlayerAnimationPanel /><BossCombatPanel /><DialogueEditorPanel /><TriggerActionsPanel /><ProblemsPanel /></div>
       </div>
     </section>
     <StatusBar />
