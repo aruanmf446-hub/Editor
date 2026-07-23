@@ -1,0 +1,6 @@
+.scene-sequence-canvas{isolation:isolate}
+.sequence-scene{overflow:visible}
+.sequence-scene>.scene-background{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:0;pointer-events:none}
+.sequence-scene>.canvas-object{position:absolute;z-index:20}
+.sequence-scene>.cross-scene-object{z-index:240!important;box-shadow:0 0 0 1px rgba(255,122,61,.32)}
+.sequence-scene>.sequence-scene-label,.sequence-scene>.alignment-guide,.sequence-scene>.selection-marquee,.sequence-scene>.enemy-range-editor{z-index:300}
