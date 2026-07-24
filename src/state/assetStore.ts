@@ -6,7 +6,7 @@ import { useEditorStore } from './editorStore';
 
 function classify(file: File): AssetCategory {
   const name = file.name.toLowerCase();
-  if (name.endsWith('.glb') || name.endsWith('.gltf')) return 'model';
+  if (name.endsWith('.glb') || name.endsWith('.gltf') || name.endsWith('.fbx') || name.endsWith('.obj')) return 'model';
   if (file.type.startsWith('audio/')) return 'audio';
   if (file.type.startsWith('image/')) return name.includes('scene') || name.includes('background') || name.includes('cenario') ? 'background' : 'texture';
   return 'other';
