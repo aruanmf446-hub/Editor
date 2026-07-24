@@ -24,4 +24,11 @@ export default tseslint.config(
       'react-hooks/set-state-in-effect': 'off',
     },
   },
+  {
+    files: ['src/editor/PlayerAnimationPanel.tsx'],
+    rules: {
+      // O painel redefine a leitura de clips quando o modelo selecionado muda.
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 );
