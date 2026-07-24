@@ -36,8 +36,10 @@ export interface SceneBackgroundSettings { fit: BackgroundFit; positionX: number
 export type FinishEndingMode = 'next-scene' | 'target-scene' | 'complete-game';
 export type PlayerAnimationRole = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'attack' | 'defend' | 'hurt' | 'dead' | 'crouch';
 export type PlayerAnimationAssignments = Partial<Record<PlayerAnimationRole, string>>;
+export type PlayerAnimationAssetAssignments = Partial<Record<PlayerAnimationRole, AssetId>>;
 export type EnemyAnimationRole = 'idle' | 'walk' | 'run' | 'attack' | 'hurt' | 'dead' | 'intro' | 'phase-transition';
 export type EnemyAnimationAssignments = Partial<Record<EnemyAnimationRole, string>>;
+export type EnemyAnimationAssetAssignments = Partial<Record<EnemyAnimationRole, AssetId>>;
 
 export interface BossAttackDefinition { id: string; name: string; animationClip?: string; damage: number; reach: number; durationMs: number; activeStartMs: number; activeEndMs: number; cooldownMs: number; minimumPhase?: number; dashSpeed?: number; }
 export interface BossPhaseDefinition { id: string; name: string; healthThreshold: number; speedMultiplier: number; damageMultiplier: number; cooldownMultiplier: number; enabledAttackIds: string[]; transitionDurationMs: number; }
@@ -85,9 +87,11 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   direction?: 'left' | 'right'; entryId?: string; defaultEntry?: boolean;
   initialHealth?: number; initialLives?: number; initialAttack?: number; initialDefense?: number; doubleJumpEnabled?: boolean;
   animationAssignments?: PlayerAnimationAssignments;
+  animationAssetAssignments?: PlayerAnimationAssetAssignments;
   enemyAnimationAssignments?: EnemyAnimationAssignments;
+  enemyAnimationAssetAssignments?: EnemyAnimationAssetAssignments;
   collisionType?: 'solid' | 'one-way' | 'none'; passThrough?: boolean; visibleInGame?: boolean;
-  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number; enemyActiveAtStart?: boolean; requiredForCompletion?: boolean;
+  patrolLeft?: number; patrolRight?: number; visionDistance?: number; walkSpeed?: number; runSpeed?: number; attackDistance?: number; damage?: number; attackCooldownMs?: number; enemyHealth?: number; enemyActiveAtStart?: boolean; requiredForCompletion?: boolean; pursuitMode?: boolean;
   bossHealth?: number; bossPhaseCount?: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[];
   checkpointOrder?: number; respawnHealth?: number;
   pickupAmount?: number; respawnable?: boolean; respawnDelayMs?: number;
@@ -97,9 +101,9 @@ export interface SceneObjectBase<TType extends SceneObjectType = SceneObjectType
   endingMode?: FinishEndingMode; targetSceneId?: string; targetEntryId?: string; requiresAllCollectibles?: boolean;
   completionLogic?: 'all' | 'any'; completionConditions?: CompletionCondition[];
 }
-export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; entryId?: string; defaultEntry?: boolean; initialHealth: number; initialLives?: number; initialAttack: number; initialDefense: number; doubleJumpEnabled?: boolean; animationAssignments?: PlayerAnimationAssignments; }
-export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; enemyAnimationAssignments?: EnemyAnimationAssignments; }
-export interface BossObject extends SceneObjectBase<'boss'> { direction: 'left' | 'right'; bossHealth: number; bossPhaseCount: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[]; enemyAnimationAssignments?: EnemyAnimationAssignments; }
+export interface PlayerSpawnObject extends SceneObjectBase<'player-spawn'> { direction: 'left' | 'right'; entryId?: string; defaultEntry?: boolean; initialHealth: number; initialLives?: number; initialAttack: number; initialDefense: number; doubleJumpEnabled?: boolean; animationAssignments?: PlayerAnimationAssignments; animationAssetAssignments?: PlayerAnimationAssetAssignments; }
+export interface CactusObject extends SceneObjectBase<'enemy-cactus'> { direction: 'left' | 'right'; patrolLeft: number; patrolRight: number; visionDistance: number; walkSpeed: number; runSpeed: number; attackDistance: number; damage: number; attackCooldownMs: number; enemyHealth?: number; enemyAnimationAssignments?: EnemyAnimationAssignments; enemyAnimationAssetAssignments?: EnemyAnimationAssetAssignments; pursuitMode?: boolean; }
+export interface BossObject extends SceneObjectBase<'boss'> { direction: 'left' | 'right'; bossHealth: number; bossPhaseCount: number; bossAttacks?: BossAttackDefinition[]; bossPhases?: BossPhaseDefinition[]; enemyAnimationAssignments?: EnemyAnimationAssignments; enemyAnimationAssetAssignments?: EnemyAnimationAssetAssignments; }
 export interface PlatformObject extends SceneObjectBase<'platform'> { collisionType: 'solid' | 'one-way' | 'none'; passThrough: boolean; visibleInGame: boolean; }
 export type KnownSceneObject = PlayerSpawnObject | CactusObject | BossObject | PlatformObject | SceneObjectBase;
 export interface ProjectScene { id: SceneId; name: string; order: number; width: number; height: number; backgroundAssetId: AssetId | null; background: SceneBackgroundSettings; objects: KnownSceneObject[]; }
