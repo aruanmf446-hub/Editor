@@ -31,7 +31,7 @@ const aliases: Record<PlayerAnimationState, string[]> = {
   idle: ['idle', 'stand', 'standing', 'parado'],
   walk: ['walk', 'walking', 'caminhar', 'andar'],
   crouch: ['crouch', 'duck', 'agachar'],
-  defend: ['defend', 'block', 'guard', 'defesa'],
+  defend: ['defend', 'block', 'guard', 'defesa', 'escudo'],
   hurt: ['hurt', 'damage', 'hitreact', 'hit react', 'dano'],
 };
 
@@ -96,6 +96,7 @@ function resolvePlayerAnimationClips(
 
   reuse('fall', 'jump');
   reuse('walk', 'run');
+  reuse('run', 'walk');
   reuse('idle', 'walk');
   reuse('idle', 'run');
 
