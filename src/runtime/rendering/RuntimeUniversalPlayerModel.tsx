@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AmbientLight,
   AnimationClip,
+  AnimationMixer,
   Bone,
   Box3,
   Color,
   DirectionalLight,
   Group,
+  HemisphereLight,
   Mesh,
   MeshStandardMaterial,
   OrthographicCamera,
@@ -40,6 +42,8 @@ type Props = {
 };
 
 type LoadedModel = { model: Object3D; clips: AnimationClip[]; extension: string };
+type SavedPose = { node: Object3D; position: Vector3; quaternion: Object3D['quaternion']; scale: Vector3 };
+
 const extensionOf = (name: string) => name.toLowerCase().split('.').pop() ?? '';
 
 async function loadModel(assetId: string): Promise<LoadedModel> {
@@ -102,8 +106,6 @@ function retargetTrack(track: KeyframeTrack, nodeNames: Map<string, string>): Ke
   const direct = nodeNames.get(canonicalTarget);
   if (!direct) return null;
 
-  // Mixamo costuma incluir deslocamento e escala global no Hips/Armature.
-  // O deslocamento do personagem pertence à física 2D, não ao clip 3D.
   const isRootNode = canonicalTarget === 'hips' || canonicalTarget === 'root' || canonicalTarget === 'armature';
   if (property === '.scale' || (isRootNode && property === '.position')) return null;
 
@@ -128,22 +130,84 @@ function hasRig(model: Object3D): boolean {
   return found;
 }
 
-function normalizeModelToPlayerBox(model: Object3D, playerWidth: number, playerHeight: number): void {
-  model.updateMatrixWorld(true);
-  const bounds = new Box3().setFromObject(model);
-  const size = bounds.getSize(new Vector3());
-  const fitWidth = size.x > 0 ? playerWidth / size.x : 1;
-  const fitHeight = size.y > 0 ? playerHeight / size.y : 1;
-  const baseScale = Math.min(fitWidth, fitHeight);
-  model.scale.multiplyScalar(baseScale * RUNTIME_CONFIG.playerModelScale);
-  model.updateMatrixWorld(true);
+function savePose(model: Object3D): SavedPose[] {
+  const saved: SavedPose[] = [];
+  model.traverse((node) => saved.push({
+    node,
+    position: node.position.clone(),
+    quaternion: node.quaternion.clone(),
+    scale: node.scale.clone(),
+  }));
+  return saved;
+}
 
-  const scaledBounds = new Box3().setFromObject(model);
-  const center = scaledBounds.getCenter(new Vector3());
-  model.position.x -= center.x;
-  model.position.y -= scaledBounds.min.y;
-  model.position.z -= center.z;
+function restorePose(saved: SavedPose[]): void {
+  for (const item of saved) {
+    item.node.position.copy(item.position);
+    item.node.quaternion.copy(item.quaternion);
+    item.node.scale.copy(item.scale);
+    item.node.updateMatrix();
+  }
+}
+
+function refreshSkinnedMeshes(model: Object3D): void {
+  model.traverse((node) => {
+    if (!(node instanceof SkinnedMesh)) return;
+    node.skeleton.update();
+    node.computeBoundingBox();
+    node.computeBoundingSphere();
+  });
   model.updateMatrixWorld(true);
+}
+
+function measureModel(model: Object3D): Box3 {
+  refreshSkinnedMeshes(model);
+  return new Box3().setFromObject(model, true);
+}
+
+function calculateAnimatedFit(
+  model: Object3D,
+  clips: AnimationClip[],
+  playerWidth: number,
+  playerHeight: number,
+): { scale: number; center: Vector3; bottom: number } {
+  const saved = savePose(model);
+  const baseBounds = measureModel(model);
+  const baseCenter = baseBounds.getCenter(new Vector3());
+  let maximumWidth = Math.max(0.0001, baseBounds.max.x - baseBounds.min.x);
+  let maximumHeight = Math.max(0.0001, baseBounds.max.y - baseBounds.min.y);
+
+  if (clips.length > 0 && hasRig(model)) {
+    const sampler = new AnimationMixer(model);
+    for (const clip of clips) {
+      const action = sampler.clipAction(clip);
+      action.reset().play();
+      const samples = Math.max(4, Math.min(10, Math.ceil(clip.duration * 6)));
+      for (let index = 0; index <= samples; index += 1) {
+        sampler.setTime(clip.duration * (index / samples));
+        const bounds = measureModel(model);
+        maximumWidth = Math.max(maximumWidth, bounds.max.x - bounds.min.x);
+        maximumHeight = Math.max(maximumHeight, bounds.max.y - bounds.min.y);
+      }
+      action.stop();
+      sampler.stopAllAction();
+      sampler.uncacheAction(clip, model);
+      sampler.uncacheClip(clip);
+      restorePose(saved);
+      refreshSkinnedMeshes(model);
+    }
+    sampler.uncacheRoot(model);
+  }
+
+  restorePose(saved);
+  refreshSkinnedMeshes(model);
+  const widthScale = playerWidth / maximumWidth;
+  const heightScale = playerHeight / maximumHeight;
+  return {
+    scale: Math.min(widthScale, heightScale) * RUNTIME_CONFIG.playerModelScale,
+    center: baseCenter,
+    bottom: baseBounds.min.y,
+  };
 }
 
 export function RuntimeUniversalPlayerModel({ assetId, animationAssignments, animationAssetAssignments, world, onStatusChange }: Props) {
@@ -196,23 +260,33 @@ export function RuntimeUniversalPlayerModel({ assetId, animationAssignments, ani
         const scene = new Scene();
         const camera = new OrthographicCamera(0, 1, 0, -1, 0.1, 2000);
         camera.position.set(0, 0, 1000);
+
         const root = new Group();
+        const fitRoot = new Group();
+        const contentRoot = new Group();
         const currentPlayer = worldRef.current.player;
-        normalizeModelToPlayerBox(model, currentPlayer.width, currentPlayer.standingHeight);
-        root.add(model);
+        const fit = calculateAnimatedFit(model, clips, currentPlayer.width, currentPlayer.standingHeight);
+        contentRoot.position.set(-fit.center.x, -fit.bottom, -fit.center.z);
+        contentRoot.add(model);
+        fitRoot.scale.setScalar(fit.scale);
+        fitRoot.add(contentRoot);
+        root.add(fitRoot);
         scene.add(root);
-        scene.add(new AmbientLight(0xffffff, 2.4));
-        const light = new DirectionalLight(0xffffff, 3.2);
+
+        scene.add(new AmbientLight(0xffffff, 2.8));
+        scene.add(new HemisphereLight(0xffffff, 0x334466, 2.2));
+        const light = new DirectionalLight(0xffffff, 3.4);
         light.position.set(200, 300, 500);
         scene.add(light);
+
         model.traverse((object) => {
           if (!(object instanceof Mesh)) return;
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           materials.forEach((material) => {
-            if (material instanceof MeshStandardMaterial) {
-              material.needsUpdate = true;
-              material.roughness = Math.min(material.roughness, 0.85);
-            }
+            material.transparent = false;
+            material.opacity = 1;
+            material.needsUpdate = true;
+            if (material instanceof MeshStandardMaterial) material.roughness = Math.min(material.roughness, 0.85);
           });
         });
 
@@ -246,6 +320,7 @@ export function RuntimeUniversalPlayerModel({ assetId, animationAssignments, ani
             if (animation.transitionTo(player.visualState, { logicalAttackDuration: RUNTIME_CONFIG.attackDuration, logicalDeathDuration: RUNTIME_CONFIG.deathDuration })) visualState = player.visualState;
           }
           animation.update(delta);
+
           const alpha = RUNTIME_CONFIG.fixedStep > 0 ? Math.min(1, Math.max(0, current.accumulator / RUNTIME_CONFIG.fixedStep)) : 1;
           const x = player.renderPreviousX + (player.x - player.renderPreviousX) * alpha;
           const y = player.renderPreviousY + (player.y - player.renderPreviousY) * alpha;
