@@ -1,4 +1,4 @@
-import type { PlayerAnimationAssignments, SceneObjectBase } from '../types/project';
+import type { PlayerAnimationAssetAssignments, PlayerAnimationAssignments, SceneObjectBase } from '../types/project';
 import { RUNTIME_CONFIG } from './RuntimeConfig';
 import type { RuntimeBounds, RuntimePlatformState } from './RuntimeWorld';
 import { intersects } from './RuntimeCollision';
@@ -9,7 +9,7 @@ export type RuntimePlayerMode = RuntimePlayerVisualState;
 export type RuntimePlayerState = {
   x: number; y: number; previousX: number; previousY: number; renderPreviousX: number; renderPreviousY: number;
   spawnX: number; spawnY: number; width: number; height: number; standingHeight: number;
-  assetId?: string; animationAssignments?: PlayerAnimationAssignments;
+  assetId?: string; animationAssignments?: PlayerAnimationAssignments; animationAssetAssignments?: PlayerAnimationAssetAssignments;
   velocityX: number; velocityY: number; direction: 'left' | 'right'; grounded: boolean; crouching: boolean;
   health: number; maxHealth: number; lives: number; maxLives: number; respawnHealth: number; attack: number; defense: number;
   coyoteRemaining: number; jumpBufferRemaining: number; doubleJumpEnabled: boolean; airJumpsRemaining: number;
@@ -27,7 +27,7 @@ export function createRuntimePlayer(spawn: SceneObjectBase): RuntimePlayerState 
     x: spawn.transform.x, y: spawn.transform.y, previousX: spawn.transform.x, previousY: spawn.transform.y,
     renderPreviousX: spawn.transform.x, renderPreviousY: spawn.transform.y, spawnX: spawn.transform.x, spawnY: spawn.transform.y,
     width: spawn.transform.width, height: spawn.transform.height, standingHeight: spawn.transform.height,
-    assetId: spawn.assetId, animationAssignments: spawn.animationAssignments, velocityX: 0, velocityY: 0,
+    assetId: spawn.assetId, animationAssignments: spawn.animationAssignments, animationAssetAssignments: spawn.animationAssetAssignments, velocityX: 0, velocityY: 0,
     direction: spawn.direction ?? 'right', grounded: false, crouching: false,
     health, maxHealth: health, lives, maxLives: lives, respawnHealth: health,
     attack: spawn.initialAttack ?? 1, defense: spawn.initialDefense ?? 1,
