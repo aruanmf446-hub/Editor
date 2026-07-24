@@ -8,6 +8,11 @@ const MODEL_OBJECT_TYPES = new Set([
   'obstacle',
 ]);
 
+const isBaseModel = (originalName: string) => {
+  const extension = originalName.toLowerCase().split('.').pop();
+  return extension === 'glb' || extension === 'gltf' || extension === 'fbx' || extension === 'obj';
+};
+
 export function ModelAssetPanel() {
   const project = useEditorStore((state) => state.project);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
@@ -18,31 +23,31 @@ export function ModelAssetPanel() {
   const object = scene?.objects.find((item) => item.id === selectedObjectId);
   if (!object || !MODEL_OBJECT_TYPES.has(object.type)) return null;
 
-  const models = project.assets.filter((asset) => asset.category === 'model');
+  const models = project.assets.filter((asset) => asset.category === 'model' && isBaseModel(asset.originalName));
   const selectedModel = models.find((asset) => asset.id === object.assetId);
 
   return (
     <section className="panel inspector model-asset-panel" aria-label="Modelo 3D do objeto">
       <h2>Modelo 3D</h2>
       <label>
-        Arquivo GLB
+        Arquivo do personagem
         <select
           value={object.assetId ?? ''}
           onChange={(event) => updateObject(object.id, { assetId: event.target.value || undefined })}
         >
           <option value="">Nenhum modelo</option>
           {models.map((asset) => (
-            <option key={asset.id} value={asset.id}>{asset.name}</option>
+            <option key={asset.id} value={asset.id}>{asset.name} ({asset.originalName.split('.').pop()?.toUpperCase()})</option>
           ))}
         </select>
       </label>
 
       {models.length === 0 ? (
-        <p className="panel-hint">Importe um arquivo GLB em Assets para vinculá-lo ao objeto selecionado.</p>
+        <p className="panel-hint">Importe um arquivo GLB, GLTF, FBX ou OBJ em Assets.</p>
       ) : selectedModel ? (
         <div className="model-asset-summary">
           <strong>{selectedModel.name}</strong>
-          <span>Modelo vinculado ao objeto</span>
+          <span>{selectedModel.originalName.split('.').pop()?.toUpperCase()} vinculado ao objeto</span>
           <button type="button" onClick={() => updateObject(object.id, { assetId: undefined })}>Remover modelo</button>
         </div>
       ) : (
