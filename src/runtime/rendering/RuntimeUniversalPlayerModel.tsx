@@ -78,13 +78,69 @@ async function loadAnimationClip(assetId: string, role: PlayerAnimationRole): Pr
   return clip;
 }
 
+const MIXAMO_TO_ACCURIG: Record<string, string> = {
+  hips: 'ccbasehip',
+  spine: 'ccbasewaist',
+  spine1: 'ccbasespine01',
+  spine2: 'ccbasespine02',
+  neck: 'ccbasenecktwist01',
+  head: 'ccbasehead',
+  leftshoulder: 'ccbaselclavicle',
+  leftarm: 'ccbaselupperarm',
+  leftforearm: 'ccbaselforearm',
+  lefthand: 'ccbaselhand',
+  rightshoulder: 'ccbaserclavicle',
+  rightarm: 'ccbaserupperarm',
+  rightforearm: 'ccbaserforearm',
+  righthand: 'ccbaserhand',
+  leftupleg: 'ccbaselthigh',
+  leftleg: 'ccbaselcalf',
+  leftfoot: 'ccbaselfoot',
+  lefttoebase: 'ccbaseltoebase',
+  rightupleg: 'ccbaserthigh',
+  rightleg: 'ccbasercalf',
+  rightfoot: 'ccbaserfoot',
+  righttoebase: 'ccbasertoebase',
+  lefthandthumb1: 'ccbaselthumb1',
+  lefthandthumb2: 'ccbaselthumb2',
+  lefthandthumb3: 'ccbaselthumb3',
+  lefthandindex1: 'ccbaselindex1',
+  lefthandindex2: 'ccbaselindex2',
+  lefthandindex3: 'ccbaselindex3',
+  lefthandmiddle1: 'ccbaselmid1',
+  lefthandmiddle2: 'ccbaselmid2',
+  lefthandmiddle3: 'ccbaselmid3',
+  lefthandring1: 'ccbaselring1',
+  lefthandring2: 'ccbaselring2',
+  lefthandring3: 'ccbaselring3',
+  lefthandpinky1: 'ccbaselpinky1',
+  lefthandpinky2: 'ccbaselpinky2',
+  lefthandpinky3: 'ccbaselpinky3',
+  righthandthumb1: 'ccbaserthumb1',
+  righthandthumb2: 'ccbaserthumb2',
+  righthandthumb3: 'ccbaserthumb3',
+  righthandindex1: 'ccbaserindex1',
+  righthandindex2: 'ccbaserindex2',
+  righthandindex3: 'ccbaserindex3',
+  righthandmiddle1: 'ccbasermid1',
+  righthandmiddle2: 'ccbasermid2',
+  righthandmiddle3: 'ccbasermid3',
+  righthandring1: 'ccbaserring1',
+  righthandring2: 'ccbaserring2',
+  righthandring3: 'ccbaserring3',
+  righthandpinky1: 'ccbaserpinky1',
+  righthandpinky2: 'ccbaserpinky2',
+  righthandpinky3: 'ccbaserpinky3',
+};
+
 function canonicalNodeName(name: string): string {
-  return name
+  const canonical = name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/^.*[:|]/, '')
     .replace(/[^a-z0-9]/g, '');
+  return MIXAMO_TO_ACCURIG[canonical] ?? canonical;
 }
 
 function buildNodeNameMap(model: Object3D): Map<string, string> {
@@ -106,7 +162,13 @@ function retargetTrack(track: KeyframeTrack, nodeNames: Map<string, string>): Ke
   const direct = nodeNames.get(canonicalTarget);
   if (!direct) return null;
 
-  const isRootNode = canonicalTarget === 'hips' || canonicalTarget === 'root' || canonicalTarget === 'armature';
+  const sourceCanonical = sourceTarget
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/^.*[:|]/, '')
+    .replace(/[^a-z0-9]/g, '');
+  const isRootNode = sourceCanonical === 'hips' || sourceCanonical === 'root' || sourceCanonical === 'armature';
   if (property === '.scale' || (isRootNode && property === '.position')) return null;
 
   const copy = track.clone();
@@ -250,6 +312,7 @@ export function RuntimeUniversalPlayerModel({ assetId, animationAssignments, ani
             console.warn(`[player-animation] nenhum osso compatível encontrado para ${role}`);
             continue;
           }
+          console.info(`[player-animation] ${role}: ${clip.tracks.length}/${sourceClip.tracks.length} trilhas compatíveis`);
           clips.push(clip);
           effectiveAssignments[role] = clip.name;
         }
